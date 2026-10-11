@@ -104,3 +104,64 @@ async fn read_loop(reader: OwnedReadHalf, mut router: Router) -> io::Result<()> 
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::relay::test_support::{DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, within};
+    use byteorder::{BigEndian, ByteOrder};
+    use std::net::{Ipv4Addr, SocketAddrV4};
+    use tokio::io::AsyncReadExt;
+    use tokio::net::{TcpListener, UdpSocket};
+
+    async fn read_packet(device: &mut TcpStream) -> Vec<u8> {
+        let mut packet = vec![0u8; 4];
+        within(device.read_exact(&mut packet)).await.unwrap();
+        let length = usize::from(BigEndian::read_u16(&packet[2..4]));
+        packet.resize(length, 0);
+        within(device.read_exact(&mut packet[4..])).await.unwrap();
+        packet
+    }
+
+    #[tokio::test]
+    async fn relay_packets_of_the_device() {
+        let tunnel = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let mut device = TcpStream::connect(tunnel.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (stream, _) = within(tunnel.accept()).await.unwrap();
+        let client = tokio::spawn(run(0x01020304, stream));
+
+        let mut id = [0u8; 4];
+        within(device.read_exact(&mut id)).await.unwrap();
+        assert_eq!([1, 2, 3, 4], id);
+
+        let server = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let source = SocketAddrV4::new(DEVICE_IP, 50000);
+        let destination = SocketAddrV4::new(HOST_ALIAS_IP, server.local_addr().unwrap().port());
+        let request = UdpDatagram {
+            source,
+            destination,
+            payload: b"ping".to_vec(),
+        };
+        // the device writes a stream of packets, not split on packet boundaries
+        let raw = request.to_packet();
+        device.write_all(&raw[..10]).await.unwrap();
+        // let the relay read the incomplete packet before the rest arrives
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        device.write_all(&raw[10..]).await.unwrap();
+
+        let mut buf = [0u8; 64];
+        let (len, peer) = within(server.recv_from(&mut buf)).await.unwrap();
+        assert_eq!(b"ping", &buf[..len]);
+        server.send_to(b"pong", peer).await.unwrap();
+
+        let response = UdpDatagram::parse(&read_packet(&mut device).await);
+        assert_eq!(destination, response.source);
+        assert_eq!(source, response.destination);
+        assert_eq!(b"pong", &response.payload[..]);
+
+        drop(device);
+        within(client).await.unwrap();
+    }
+}

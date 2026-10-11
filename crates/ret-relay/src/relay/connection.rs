@@ -118,3 +118,34 @@ macro_rules! cx_error {
         tracing::error!(target: $target, "{}", cx_format!($id, $($arg)+))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::relay::test_support::{DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, connection_id};
+    use std::net::{Ipv4Addr, SocketAddrV4};
+
+    fn id_to(destination: SocketAddrV4) -> super::ConnectionId {
+        let mut packet = UdpDatagram {
+            source: SocketAddrV4::new(DEVICE_IP, 50000),
+            destination,
+            payload: Vec::new(),
+        }
+        .to_packet();
+        connection_id(&mut packet)
+    }
+
+    #[test]
+    fn rewrite_host_alias_to_localhost() {
+        let id = id_to(SocketAddrV4::new(HOST_ALIAS_IP, 8080));
+        assert_eq!(
+            SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8080),
+            id.rewritten_destination()
+        );
+    }
+
+    #[test]
+    fn keep_other_destinations() {
+        let destination = SocketAddrV4::new(Ipv4Addr::new(10, 0, 2, 3), 53);
+        assert_eq!(destination, id_to(destination).rewritten_destination());
+    }
+}

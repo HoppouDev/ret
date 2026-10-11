@@ -177,3 +177,58 @@ impl UdpConnection {
         open
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::relay::test_support::{
+        DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, connection_id, next_packet, within,
+    };
+    use std::net::SocketAddrV4;
+    use tokio::sync::mpsc;
+
+    #[tokio::test]
+    async fn relay_datagrams_both_ways_until_client_closes() {
+        let server = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let destination = SocketAddrV4::new(HOST_ALIAS_IP, server.local_addr().unwrap().port());
+        let device = SocketAddrV4::new(DEVICE_IP, 50000);
+        let datagram = |payload: &[u8]| {
+            UdpDatagram {
+                source: device,
+                destination,
+                payload: payload.to_vec(),
+            }
+            .to_packet()
+        };
+
+        let (to_client, mut from_relay) = mpsc::channel(16);
+        let (to_relay, inbound) = mpsc::channel(16);
+        let mut first_packet = datagram(b"ping");
+        let id = connection_id(&mut first_packet);
+        let relay = tokio::spawn(UdpConnection::run(id, to_client, first_packet, inbound));
+
+        let mut buf = [0u8; 64];
+        let (len, peer) = within(server.recv_from(&mut buf)).await.unwrap();
+        assert_eq!(b"ping", &buf[..len]);
+
+        server.send_to(b"pong", peer).await.unwrap();
+        let response = UdpDatagram::parse(&next_packet(&mut from_relay).await);
+        assert_eq!(
+            UdpDatagram {
+                source: destination,
+                destination: device,
+                payload: b"pong".to_vec(),
+            },
+            response
+        );
+
+        // the next datagrams use the same socket
+        to_relay.send(datagram(b"again")).await.unwrap();
+        let (len, next_peer) = within(server.recv_from(&mut buf)).await.unwrap();
+        assert_eq!(b"again", &buf[..len]);
+        assert_eq!(peer, next_peer);
+
+        drop(to_relay);
+        within(relay).await.unwrap();
+    }
+}

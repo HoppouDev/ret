@@ -34,6 +34,8 @@ mod router;
 mod stream_buffer;
 mod tcp_connection;
 mod tcp_header;
+#[cfg(test)]
+mod test_support;
 mod transport_header;
 mod tunnel_server;
 mod udp_connection;

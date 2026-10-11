@@ -696,3 +696,447 @@ impl TcpConnection {
         !self.client_to_network.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::relay::test_support::{
+        DEVICE_IP, HOST_ALIAS_IP, TcpSegment, connection_id, next_packet, within,
+    };
+    use std::net::{Ipv4Addr, SocketAddrV4};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use tokio::sync::mpsc;
+    use tokio::sync::mpsc::error::TryRecvError;
+
+    const SYN: u16 = tcp_header::FLAG_SYN;
+    const ACK: u16 = tcp_header::FLAG_ACK;
+    const FIN: u16 = tcp_header::FLAG_FIN;
+    const RST: u16 = tcp_header::FLAG_RST;
+    const PSH: u16 = tcp_header::FLAG_PSH;
+
+    const WINDOW: u16 = 0xFFFF;
+    const CLIENT_ISN: u32 = 1000;
+
+    fn device() -> SocketAddrV4 {
+        SocketAddrV4::new(DEVICE_IP, 40000)
+    }
+
+    fn remote() -> SocketAddrV4 {
+        SocketAddrV4::new(Ipv4Addr::new(93, 184, 216, 34), 80)
+    }
+
+    fn from_device(seq: u32, ack: u32, flags: u16, payload: &[u8]) -> Vec<u8> {
+        from_device_to(remote(), seq, ack, flags, WINDOW, payload)
+    }
+
+    fn from_device_to(
+        destination: SocketAddrV4,
+        seq: u32,
+        ack: u32,
+        flags: u16,
+        window: u16,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        TcpSegment {
+            source: device(),
+            destination,
+            seq,
+            ack,
+            flags,
+            window,
+            payload: payload.to_vec(),
+        }
+        .to_packet()
+    }
+
+    /// Create a connection from its first packet, as `run()` does, without connecting
+    fn open_with(mut first_packet: Vec<u8>) -> (TcpConnection, mpsc::Receiver<Vec<u8>>) {
+        let (sender, receiver) = mpsc::channel(16);
+        let id = connection_id(&mut first_packet);
+        let mut connection = TcpConnection::new(id, sender, &mut first_packet);
+        connection.handle_raw_packet(&mut first_packet);
+        (connection, receiver)
+    }
+
+    fn open() -> (TcpConnection, mpsc::Receiver<Vec<u8>>) {
+        let (mut connection, receiver) = open_with(from_device(CLIENT_ISN, 0, SYN, &[]));
+        // the SYN-ACK takes the last sequence number, so that the next ones wrap around
+        connection.tcb.sequence_number = Wrapping(u32::MAX);
+        (connection, receiver)
+    }
+
+    /// Complete the handshake, return the next sequence number of the relay
+    fn establish(connection: &mut TcpConnection, receiver: &mut mpsc::Receiver<Vec<u8>>) -> u32 {
+        connection.process_connect();
+        let syn_ack = sent(receiver);
+        let seq = syn_ack.seq.wrapping_add(1);
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, ACK, &[]));
+        assert_eq!(TcpState::Established, connection.tcb.state);
+        seq
+    }
+
+    fn sent(receiver: &mut mpsc::Receiver<Vec<u8>>) -> TcpSegment {
+        let segment = TcpSegment::parse(&receiver.try_recv().expect("No packet sent"));
+        assert_eq!(remote(), segment.source);
+        assert_eq!(device(), segment.destination);
+        segment
+    }
+
+    fn assert_nothing_sent(receiver: &mut mpsc::Receiver<Vec<u8>>) {
+        assert_eq!(Err(TryRecvError::Empty), receiver.try_recv());
+    }
+
+    #[test]
+    fn answer_syn_once_connected() {
+        let (mut connection, mut receiver) = open();
+        assert_eq!(TcpState::SynSent, connection.tcb.state);
+        // the SYN is acknowledged only once the destination accepted the connection
+        assert_nothing_sent(&mut receiver);
+
+        connection.process_connect();
+        let syn_ack = sent(&mut receiver);
+        assert_eq!(SYN | ACK, syn_ack.flags);
+        assert_eq!(u32::MAX, syn_ack.seq);
+        assert_eq!(CLIENT_ISN + 1, syn_ack.ack);
+        assert!(syn_ack.payload.is_empty());
+        assert_eq!(TcpState::SynReceived, connection.tcb.state);
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, 0, ACK, &[]));
+        assert_eq!(TcpState::Established, connection.tcb.state);
+        assert!(!connection.closed);
+    }
+
+    #[test]
+    fn reset_unexpected_first_packet() {
+        let (connection, mut receiver) = open_with(from_device(5000, 7000, ACK, b"data"));
+        let rst = sent(&mut receiver);
+        assert_eq!(RST, rst.flags);
+        // the RST must fall in the window of the client
+        assert_eq!(7000, rst.seq);
+        assert!(connection.closed);
+    }
+
+    #[test]
+    fn duplicate_syn_before_connection_replaces_sequence_number() {
+        let (mut connection, mut receiver) = open();
+        connection.handle_raw_packet(&mut from_device(2000, 0, SYN, &[]));
+        connection.process_connect();
+        assert_eq!(2001, sent(&mut receiver).ack);
+    }
+
+    #[test]
+    fn duplicate_syn_after_connection() {
+        let (mut connection, mut receiver) = open();
+        connection.process_connect();
+        sent(&mut receiver);
+
+        // retransmission of the same SYN
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN, 0, SYN, &[]));
+        assert_nothing_sent(&mut receiver);
+        assert!(!connection.closed);
+
+        // SYN of another connection
+        connection.handle_raw_packet(&mut from_device(3000, 0, SYN, &[]));
+        assert_eq!(RST, sent(&mut receiver).flags);
+        assert!(connection.closed);
+    }
+
+    #[test]
+    fn buffer_client_data_until_written() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, ACK | PSH, b"abc"));
+        // the next segment starts after the data not written yet
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 4, seq, ACK | PSH, b"de"));
+
+        assert_eq!(5, connection.client_to_network.size());
+        assert!(connection.may_write());
+        // data is acknowledged once written to the network
+        assert_nothing_sent(&mut receiver);
+    }
+
+    #[test]
+    fn acknowledge_unexpected_segment() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, ACK | PSH, b"abc"));
+
+        // retransmission of data already received
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, ACK | PSH, b"abc"));
+        let ack = sent(&mut receiver);
+        assert_eq!(ACK, ack.flags);
+        assert_eq!(seq, ack.seq);
+        assert_eq!(CLIENT_ISN + 1, ack.ack);
+        assert_eq!(3, connection.client_to_network.size());
+
+        // keepalive probe: one byte before the last acknowledged sequence number
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN, seq, ACK, &[]));
+        let ack = sent(&mut receiver);
+        assert_eq!(ACK, ack.flags);
+        assert_eq!(seq, ack.seq);
+        assert_eq!(CLIENT_ISN + 1, ack.ack);
+        assert_eq!(3, connection.client_to_network.size());
+        assert!(!connection.closed);
+    }
+
+    #[test]
+    fn ignore_unexpected_rst() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 100, seq, RST, &[]));
+        assert_nothing_sent(&mut receiver);
+        assert!(!connection.closed);
+    }
+
+    #[test]
+    fn close_on_rst() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, RST, &[]));
+        assert_nothing_sent(&mut receiver);
+        assert!(connection.closed);
+    }
+
+    #[test]
+    fn close_initiated_by_client() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, FIN | ACK, &[]));
+        let fin = sent(&mut receiver);
+        assert_eq!(FIN | ACK, fin.flags);
+        assert_eq!(seq, fin.seq);
+        assert_eq!(CLIENT_ISN + 2, fin.ack);
+        assert_eq!(TcpState::LastAck, connection.tcb.state);
+        assert!(!connection.closed);
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 2, seq + 1, ACK, &[]));
+        assert!(connection.closed);
+    }
+
+    #[tokio::test]
+    async fn defer_client_fin_until_data_is_written() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, ACK | PSH, b"abc"));
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 4, seq, FIN | ACK, &[]));
+        assert!(connection.tcb.fin_received);
+        assert_eq!(TcpState::Established, connection.tcb.state);
+        assert_nothing_sent(&mut receiver);
+
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let stream = TcpStream::connect(listener.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut server, _) = listener.accept().await.unwrap();
+        within(stream.writable()).await.unwrap();
+        connection.process_send(&stream);
+
+        // the FIN is acknowledged along with the data
+        let fin = sent(&mut receiver);
+        assert_eq!(FIN | ACK, fin.flags);
+        assert_eq!(seq, fin.seq);
+        assert_eq!(CLIENT_ISN + 5, fin.ack);
+        assert_nothing_sent(&mut receiver);
+        assert_eq!(TcpState::LastAck, connection.tcb.state);
+        let mut buf = [0u8; 3];
+        within(server.read_exact(&mut buf)).await.unwrap();
+        assert_eq!(b"abc", &buf);
+    }
+
+    #[test]
+    fn close_initiated_by_network() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+
+        connection.eof();
+        let fin = sent(&mut receiver);
+        assert_eq!(FIN | ACK, fin.flags);
+        assert_eq!(seq, fin.seq);
+        assert_eq!(TcpState::FinWait1, connection.tcb.state);
+        assert!(!connection.may_read());
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq + 1, ACK, &[]));
+        assert_eq!(TcpState::FinWait2, connection.tcb.state);
+        assert_nothing_sent(&mut receiver);
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq + 1, FIN | ACK, &[]));
+        let ack = sent(&mut receiver);
+        assert_eq!(ACK, ack.flags);
+        assert_eq!(CLIENT_ISN + 2, ack.ack);
+        assert!(connection.closed);
+    }
+
+    #[test]
+    fn simultaneous_close() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+
+        connection.eof();
+        sent(&mut receiver);
+        // the client sends its FIN before receiving ours
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 1, seq, FIN | ACK, &[]));
+        assert_eq!(ACK, sent(&mut receiver).flags);
+        assert_eq!(TcpState::Closing, connection.tcb.state);
+        assert!(!connection.closed);
+
+        connection.handle_raw_packet(&mut from_device(CLIENT_ISN + 2, seq + 1, ACK, &[]));
+        assert!(connection.closed);
+    }
+
+    #[test]
+    fn do_not_read_when_client_window_is_full() {
+        let (mut connection, mut receiver) = open();
+        let seq = establish(&mut connection, &mut receiver);
+        assert!(connection.may_read());
+
+        connection.handle_raw_packet(&mut from_device_to(
+            remote(),
+            CLIENT_ISN + 1,
+            seq,
+            ACK,
+            0,
+            &[],
+        ));
+        assert!(!connection.may_read());
+    }
+
+    #[test]
+    fn remaining_client_window() {
+        let mut tcb = Tcb::new();
+        tcb.their_acknowledgement_number = 100;
+        tcb.client_window = 50;
+
+        tcb.sequence_number = Wrapping(120);
+        assert_eq!(30, tcb.remaining_client_window());
+        tcb.sequence_number = Wrapping(150);
+        assert_eq!(0, tcb.remaining_client_window());
+        // the client shrank its window below the data already sent
+        tcb.sequence_number = Wrapping(160);
+        assert_eq!(0, tcb.remaining_client_window());
+
+        // the sequence numbers wrapped around
+        tcb.their_acknowledgement_number = u32::MAX - 9;
+        tcb.sequence_number = Wrapping(5);
+        assert_eq!(35, tcb.remaining_client_window());
+    }
+
+    /// Relay a TCP connection to a local server, through the host alias of the Android emulator
+    struct Relayed {
+        server: TcpStream,
+        to_relay: mpsc::Sender<Vec<u8>>,
+        from_relay: mpsc::Receiver<Vec<u8>>,
+        relay: tokio::task::JoinHandle<()>,
+        destination: SocketAddrV4,
+        // next sequence number of the relay
+        seq: u32,
+    }
+
+    impl Relayed {
+        async fn connect() -> Self {
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+            let destination =
+                SocketAddrV4::new(HOST_ALIAS_IP, listener.local_addr().unwrap().port());
+            let (to_client, mut from_relay) = mpsc::channel(64);
+            let (to_relay, inbound) = mpsc::channel(64);
+
+            let mut syn = from_device_to(destination, CLIENT_ISN, 0, SYN, WINDOW, &[]);
+            let id = connection_id(&mut syn);
+            let relay = tokio::spawn(TcpConnection::run(id, to_client, syn, inbound));
+            let (server, _) = within(listener.accept()).await.unwrap();
+
+            let syn_ack = TcpSegment::parse(&next_packet(&mut from_relay).await);
+            assert_eq!(SYN | ACK, syn_ack.flags);
+            assert_eq!(destination, syn_ack.source);
+            assert_eq!(device(), syn_ack.destination);
+            assert_eq!(CLIENT_ISN + 1, syn_ack.ack);
+
+            let relayed = Self {
+                server,
+                to_relay,
+                from_relay,
+                relay,
+                destination,
+                seq: syn_ack.seq.wrapping_add(1),
+            };
+            relayed.send(CLIENT_ISN + 1, ACK, &[]).await;
+            relayed
+        }
+
+        async fn send(&self, seq: u32, flags: u16, payload: &[u8]) {
+            let packet = from_device_to(self.destination, seq, self.seq, flags, WINDOW, payload);
+            self.to_relay.send(packet).await.unwrap();
+        }
+
+        async fn receive(&mut self) -> TcpSegment {
+            let segment = TcpSegment::parse(&next_packet(&mut self.from_relay).await);
+            assert_eq!(self.destination, segment.source);
+            assert_eq!(device(), segment.destination);
+            segment
+        }
+    }
+
+    #[tokio::test]
+    async fn relay_data_both_ways_until_network_closes() {
+        let mut relayed = Relayed::connect().await;
+
+        relayed.send(CLIENT_ISN + 1, ACK | PSH, b"hello").await;
+        let mut buf = [0u8; 5];
+        within(relayed.server.read_exact(&mut buf)).await.unwrap();
+        assert_eq!(b"hello", &buf);
+        let ack = relayed.receive().await;
+        assert_eq!(ACK, ack.flags);
+        assert_eq!(CLIENT_ISN + 6, ack.ack);
+
+        relayed.server.write_all(b"world").await.unwrap();
+        let data = relayed.receive().await;
+        assert_eq!(ACK | PSH, data.flags);
+        assert_eq!(relayed.seq, data.seq);
+        assert_eq!(b"world", &data.payload[..]);
+        relayed.seq = relayed.seq.wrapping_add(5);
+
+        relayed.server.shutdown().await.unwrap();
+        let fin = relayed.receive().await;
+        assert_eq!(FIN | ACK, fin.flags);
+        assert_eq!(relayed.seq, fin.seq);
+        relayed.seq = relayed.seq.wrapping_add(1);
+
+        relayed.send(CLIENT_ISN + 6, FIN | ACK, &[]).await;
+        let last_ack = relayed.receive().await;
+        assert_eq!(ACK, last_ack.flags);
+        assert_eq!(CLIENT_ISN + 7, last_ack.ack);
+        within(relayed.relay).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn deliver_data_before_closing_on_client_fin() {
+        let mut relayed = Relayed::connect().await;
+
+        relayed.send(CLIENT_ISN + 1, ACK | PSH, b"bye").await;
+        relayed.send(CLIENT_ISN + 4, FIN | ACK, &[]).await;
+
+        // the data may be acknowledged before the FIN arrives, the FIN is acknowledged after it
+        let fin = loop {
+            let segment = relayed.receive().await;
+            if segment.flags != ACK {
+                break segment;
+            }
+            assert_eq!(CLIENT_ISN + 4, segment.ack);
+        };
+        assert_eq!(FIN | ACK, fin.flags);
+        assert_eq!(relayed.seq, fin.seq);
+        assert_eq!(CLIENT_ISN + 5, fin.ack);
+        relayed.seq = relayed.seq.wrapping_add(1);
+        relayed.send(CLIENT_ISN + 5, ACK, &[]).await;
+        within(relayed.relay).await.unwrap();
+
+        let mut received = Vec::new();
+        within(relayed.server.read_to_end(&mut received))
+            .await
+            .unwrap();
+        assert_eq!(b"bye", &received[..]);
+    }
+}
