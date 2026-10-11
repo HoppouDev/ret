@@ -1,0 +1,20 @@
+[package]
+name = "ret-relay"
+version = "2.5.1"
+edition = "2024"
+
+[lib]
+name = "relaylib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ret"
+path = "src/main.rs"
+
+[dependencies]
+byteorder.workspace = true
+ctrlc.workspace = true
+rand.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

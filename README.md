@@ -1,9 +1,13 @@
-# Gnirehtet (v2.5.1)
+# ret
 
 This project provides **reverse tethering** over `adb` for Android: it
 allows devices to use the internet connection of the computer they are plugged
 on. It does not require any _root_ access (neither on the device nor on the
-computer). It works on _GNU/Linux_, _Windows_ and _Mac OS_.
+computer). It works on _GNU/Linux_ and _Windows_.
+
+ret is a fork of [Gnirehtet] by Genymobile.
+
+[Gnirehtet]: https://github.com/Genymobile/gnirehtet
 
 Currently, it relays [TCP] and [UDP] over [IPv4] traffic, but it does not
 support [IPv6] (yet?).
@@ -12,9 +16,6 @@ support [IPv6] (yet?).
 [UDP]: https://fr.wikipedia.org/wiki/User_Datagram_Protocol
 [IPv4]: https://en.wikipedia.org/wiki/IPv4
 [IPv6]: https://en.wikipedia.org/wiki/IPv6
-
-_**This project is not actively maintained anymore, only major blockers (like
-build issues) are fixed. It should still work, though.**_
 
 
 ## Requirements
@@ -33,7 +34,7 @@ On Debian-based distros, you can alternatively install the package
 
 On Windows, if you need `adb` only for this application, just download the
 [platform-tools][platform-tools-windows] and extract the following files to the
-_gnirehtet_ directory:
+_ret_ directory:
  - `adb.exe`
  - `AdbWinApi.dll`
  - `AdbWinUsbApi.dll`
@@ -48,75 +49,60 @@ Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
 ## Get the app
 
-### Homebrew
+Download the [latest release][latest] and extract it.
 
-If you use [Homebrew](https://brew.sh/), getting up and running is very quick.
-To install it:
+[latest]: https://github.com/HoppouDev/ret/releases/latest
 
-```
-brew install gnirehtet
-```
+The Linux archive (`ret-linux64-<version>.zip`) contains:
+ - `ret.apk`
+ - `ret`
 
-### Download
+The Windows archive (`ret-win64-<version>.zip`) contains:
+ - `ret.apk`
+ - `ret.exe`
+ - `ret-run.cmd`
 
-Download the [latest release][latest].
+Each release also lists the SHA-256 of both archives in `SHA256SUMS.txt`.
 
-[latest]: https://github.com/Genymobile/gnirehtet/releases/latest
+### Coming from Gnirehtet
 
- - **Linux:** [`gnirehtet-rust-linux64-v2.5.1.zip`][direct-rust-linux64]  
-   (SHA-256: _dee55499ca4fef00ce2559c767d2d8130163736d43fdbce753e923e75309c275_)
- - **Windows:** [`gnirehtet-rust-win64-v2.5.1.zip`][direct-rust-win64]  
-   (SHA-256: _7f5b1063e7895182aa60def1437e50363c3758144088dcd079037bb7c3c46a1c_)
- - **MacOS:** [`gnirehtet-rust-macos64-v2.2.1.zip`][direct-rust-macos64]
-   _(old release)_  
-   (SHA-256: _902103e6497f995e1e9b92421be212559950cca4a8b557e1f0403769aee06fc8_)
+The ret app is a different Android app from the Gnirehtet one, so `ret` does
+not upgrade or control it. Uninstall the old app once:
 
-[direct-rust-linux64]: https://github.com/Genymobile/gnirehtet/releases/download/v2.5.1/gnirehtet-rust-linux64-v2.5.1.zip
-[direct-rust-win64]: https://github.com/Genymobile/gnirehtet/releases/download/v2.5.1/gnirehtet-rust-win64-v2.5.1.zip
-[direct-rust-macos64]: https://github.com/Genymobile/gnirehtet/releases/download/v2.2.1/gnirehtet-rust-macos64-v2.2.1.zip
+    adb uninstall com.genymobile.gnirehtet
 
-Then extract it.
-
-The Linux and MacOS archives contain:
- - `gnirehtet.apk`
- - `gnirehtet`
-
-The Windows archive contains:
- - `gnirehtet.apk`
- - `gnirehtet.exe`
- - `gnirehtet-run.cmd`
+The first `ret run` installs the new app and asks for the VPN permission again.
 
 
 ## Run (simple)
 
-_Note: On Windows, replace `./gnirehtet` by `gnirehtet` in the following
-commands._
+_Note: On Windows, replace `./ret` by `ret` in the following commands._
 
 The application has no UI, and is intended to be controlled from the computer
 only.
 
 If you want to activate reverse tethering for exactly one device, just execute:
 
-    ./gnirehtet run
+    ./ret run
 
 Reverse tethering remains active until you press _Ctrl+C_.
 
-On Windows, for convenience, you can double-click on `gnirehtet-run.cmd`
-instead (it just executes `gnirehtet run`, without requiring to open a
+On Windows, for convenience, you can double-click on `ret-run.cmd` instead (it
+just executes `ret run`, without requiring to open a
 terminal).
 
 The very first start should open a popup to request permission:
 
 ![request](assets/request.jpg)
 
-A "key" logo appears in the status bar whenever _Gnirehtet_ is active:
+A "key" logo appears in the status bar whenever _ret_ is active:
 
 ![key](assets/key.png)
 
 Alternatively, you can enable reverse tethering for all connected devices
 (present and future) by calling:
 
-    ./gnirehtet autorun
+    ./ret autorun
 
 
 ## Run
@@ -126,54 +112,54 @@ tether several devices simultaneously).
 
 Start the relay server and keep it open:
 
-    ./gnirehtet relay
+    ./ret relay
 
 Install the `apk` on your Android device:
 
-    ./gnirehtet install [serial]
+    ./ret install [serial]
 
 In another terminal, for each client, execute:
 
-    ./gnirehtet start [serial]
+    ./ret start [serial]
 
 To stop a client:
 
-    ./gnirehtet stop [serial]
+    ./ret stop [serial]
 
 To reset the tunnel (useful to get the connection back when a device is
-unplugged and plugged back while gnirehtet is active):
+unplugged and plugged back while ret is active):
 
-    ./gnirehtet tunnel [serial]
+    ./ret tunnel [serial]
 
 The _serial_ parameter is required only if `adb devices` outputs more than one
 device.
 
-For advanced options, call `./gnirehtet` without arguments to get more details.
+For advanced options, call `./ret` without arguments to get more details.
 
 
 ## Run manually
 
-The `gnirehtet` program exposes a simple command-line interface that executes
+The `ret` program exposes a simple command-line interface that executes
 lower-level commands. You can call them manually instead.
 
 To start the relay server:
 
-    ./gnirehtet relay
+    ./ret relay
 
 To install the apk:
 
-    adb install -r gnirehtet.apk
+    adb install -r ret.apk
 
 To start a client:
 
-    adb reverse localabstract:gnirehtet tcp:31416
-    adb shell am start -a com.genymobile.gnirehtet.START \
-        -n com.genymobile.gnirehtet/.GnirehtetActivity
+    adb reverse localabstract:ret tcp:31416
+    adb shell am start -a dev.hoppou.ret.START \
+        -n dev.hoppou.ret/.RetActivity
 
 To stop a client:
 
-    adb shell am start -a com.genymobile.gnirehtet.STOP \
-        -n com.genymobile.gnirehtet/.GnirehtetActivity
+    adb shell am start -a dev.hoppou.ret.STOP \
+        -n dev.hoppou.ret/.RetActivity
 
 
 ## Environment variables
@@ -181,27 +167,30 @@ To stop a client:
 `ADB` defines a custom path to the `adb` executable:
 
 ```bash
-ADB=/path/to/my/adb ./gnirehtet run
+ADB=/path/to/my/adb ./ret run
 ```
 
-`GNIREHTET_APK` defines a custom path to `gnirehtet.apk`:
+`RET_APK` defines a custom path to `ret.apk`:
 
 ```bash
-GNIREHTET_APK=/usr/share/gnirehtet/gnirehtet.apk ./gnirehtet run
+RET_APK=/usr/share/ret/ret.apk ./ret run
 ```
 
 `RUST_LOG` sets which logs are printed (`info` by default), for example to
 print debug logs:
 
 ```bash
-RUST_LOG=debug ./gnirehtet run
+RUST_LOG=debug ./ret run
 ```
 
 It also accepts per-component levels, such as
 `RUST_LOG=info,TcpConnection=debug`.
 
 
-## Why _gnirehtet_?
+## Why _ret_?
+
+It is short for _reverse tethering_. The upstream name, _gnirehtet_, is
+_tethering_ reversed:
 
     rev <<< tethering
 
@@ -232,7 +221,7 @@ Read the [developers page].
     limitations under the License.
 
 
-## Articles
+## Articles about Gnirehtet
 
 - [Introducing “gnirehtet”, a reverse tethering tool for Android][medium-1] ([French version][blog-1])
 - [Gnirehtet 2: our reverse tethering tool for Android now available in Rust][medium-2]

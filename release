@@ -1,5 +1,5 @@
 #!/bin/bash
-# Make a gnirehtet release.
+# Make a ret release.
 #
 # Put your keystore properties into ~/.gradle/gradle.properties
 # (check app/build.gradle)
@@ -8,8 +8,8 @@ set -e # fail on error
 
 GRADLE=${GRADLE:-./gradlew} # set value ./gradlew if not set
 DIST=dist
-TARGET_DIR_RUST_LINUX=gnirehtet-rust-linux64
-TARGET_DIR_RUST_WIN=gnirehtet-rust-win64
+TARGET_DIR_RUST_LINUX=ret-linux64
+TARGET_DIR_RUST_WIN=ret-win64
 
 version=$(git describe --tags --always)
 TARGET_RUST_LINUX="$TARGET_DIR_RUST_LINUX-$version".zip
@@ -22,13 +22,13 @@ rm -rf "$DIST"
 for dir in "$TARGET_DIR_RUST_LINUX" "$TARGET_DIR_RUST_WIN"
 do
     mkdir -p "$DIST/$dir"
-    cp app/build/outputs/apk/release/gnirehtet-release.apk "$DIST/$dir"/gnirehtet.apk
+    cp app/build/outputs/apk/release/ret-release.apk "$DIST/$dir"/ret.apk
 done
 
-cp relay/target/release/gnirehtet "$DIST/$TARGET_DIR_RUST_LINUX"/
-strip "$DIST/$TARGET_DIR_RUST_LINUX"/gnirehtet  # remove symbols for smaller binary
-cp relay/target/x86_64-pc-windows-gnu/release/gnirehtet.exe \
-   relay/scripts/gnirehtet-run.cmd \
+cp target/release/ret "$DIST/$TARGET_DIR_RUST_LINUX"/
+strip "$DIST/$TARGET_DIR_RUST_LINUX"/ret  # remove symbols for smaller binary
+cp target/x86_64-pc-windows-gnu/release/ret.exe \
+   crates/ret-relay/scripts/ret-run.cmd \
    "$DIST/$TARGET_DIR_RUST_WIN"/
 
 cd "$DIST"

@@ -1,37 +1,25 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
-ext {
-    compileSdkVersion = 28
-    buildToolsVersion = "28.0.3"
+plugins {
+    id 'com.android.application' version '9.4.1' apply false
 }
 
-buildscript {
-    repositories {
-        jcenter()
-        google()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:3.5.0'
-
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
-    }
+tasks.register('clean', Delete) {
+    delete layout.buildDirectory
 }
 
-allprojects {
-    repositories {
-        jcenter()
-        google()
-    }
+tasks.register('debugAll') {
+    dependsOn ':app:assembleDebug', ':relay:debug'
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+tasks.register('releaseAll') {
+    dependsOn ':app:assembleRelease', ':relay:release'
 }
 
-task debugAll(dependsOn: [':app:assembleDebug', ':relay:debug'])
-task releaseAll(dependsOn: [':app:assembleRelease', ':relay:release'])
+tasks.register('releaseWindows') {
+    dependsOn ':app:assembleRelease', ':relay:releaseCrossToWindows'
+}
 
-task releaseWindows(dependsOn: [':app:assembleRelease', ':relay:releaseCrossToWindows'])
-
-task checkAll(dependsOn: [':app:check', ':relay:check'])
+tasks.register('checkAll') {
+    dependsOn ':app:check', ':relay:check'
+}

@@ -10,8 +10,8 @@ repo = "local"
 id = "cargo-fmt"
 name = "cargo fmt (relay)"
 language = "system"
-entry = "cargo fmt --manifest-path relay/Cargo.toml --all -- --check"
-files = "^relay/.*\\.rs$"
+entry = "cargo fmt --all -- --check"
+files = "^(crates/.*\\.rs|Cargo\\.toml)$"
 pass_filenames = false
 stages = ["pre-commit"]
 
@@ -19,8 +19,8 @@ stages = ["pre-commit"]
 id = "cargo-clippy"
 name = "cargo clippy (relay)"
 language = "system"
-entry = "cargo clippy --manifest-path relay/Cargo.toml --all-targets -- -D warnings"
-files = "^relay/(.*\\.rs|Cargo\\.(toml|lock))$"
+entry = "cargo clippy --workspace --all-targets -- -D warnings"
+files = "^(crates/.*\\.rs|crates/.*/Cargo\\.toml|Cargo\\.(toml|lock))$"
 pass_filenames = false
 stages = ["pre-commit"]
 
