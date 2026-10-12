@@ -1,0 +1,25 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+plugins {
+    id("com.android.application") version "9.4.1" apply false
+}
+
+tasks.register<Delete>("clean") {
+    delete(layout.buildDirectory)
+}
+
+tasks.register("debugAll") {
+    dependsOn(":app:assembleDebug", ":cli:debug")
+}
+
+tasks.register("releaseAll") {
+    dependsOn(":app:assembleRelease", ":cli:release")
+}
+
+tasks.register("releaseWindows") {
+    dependsOn(":app:assembleRelease", ":cli:releaseCrossToWindows")
+}
+
+tasks.register("checkAll") {
+    dependsOn(":app:check", ":cli:check")
+}

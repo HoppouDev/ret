@@ -2,7 +2,7 @@
 # Make a ret release.
 #
 # Put your keystore properties into ~/.gradle/gradle.properties
-# (check app/build.gradle)
+# (check app/build.gradle.kts)
 
 set -e # fail on error
 

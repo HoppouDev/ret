@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'ret'
+rootProject.name = "ret"
 
-include ':app', ':cli'
-project(':cli').projectDir = file('crates/ret-cli')
+include(":app", ":cli")
+project(":cli").projectDir = file("crates/ret-cli")
