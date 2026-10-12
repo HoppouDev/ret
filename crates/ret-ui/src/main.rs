@@ -1,5 +1,8 @@
 //! Window to control ret: the relay server and the client on each device
 
+// a release build on Windows opens no console window next to the application window
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod app;
 mod backend;
 mod logs;
