@@ -21,6 +21,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 
 class IPPacketOutputStreamTest {
@@ -94,5 +95,43 @@ class IPPacketOutputStreamTest {
         pos.write(rawPackets, 70, 26)
         assertEquals("Exactly 3 packets should have been written", 96, cos.size())
         assertEquals("Packets should be written individually to the target", 3, cos.packetCount)
+    }
+
+    @Test
+    fun writeOneByteAtATime() {
+        val bos = ByteArrayOutputStream()
+        val pos = IPPacketOutputStream(bos)
+        val rawPacket = createMockPacket().array()
+
+        for ((i, byte) in rawPacket.withIndex()) {
+            pos.write(byte.toInt())
+            val expected = if (i == rawPacket.lastIndex) 32 else 0
+            assertEquals("After ${i + 1} bytes", expected, bos.size())
+        }
+        assertArrayEquals(rawPacket, bos.toByteArray())
+    }
+
+    @Test(expected = IOException::class)
+    fun rejectMoreThanOnePacketAtOnce() {
+        IPPacketOutputStream(ByteArrayOutputStream()).write(ByteArray(0x10001), 0, 0x10001)
+    }
+
+    @Test
+    fun readHeaderFields() {
+        val packet = createMockPacket()
+        assertEquals(4, IPPacketOutputStream.readPacketVersion(packet))
+        assertEquals(32, IPPacketOutputStream.readPacketLength(packet))
+
+        // the length is unsigned, a packet of 0xFFFF bytes must not read as negative
+        val big = ByteBuffer.allocate(4).put(0x45).put(0).putShort(0xFFFF.toShort()).apply { flip() }
+        assertEquals(0xFFFF, IPPacketOutputStream.readPacketLength(big))
+    }
+
+    @Test
+    fun headerFieldsUnavailableInAPartialPacket() {
+        assertEquals(-1, IPPacketOutputStream.readPacketVersion(ByteBuffer.allocate(0)))
+        val partial = ByteBuffer.allocate(3).put(0x45).put(0).put(0).apply { flip() }
+        assertEquals(4, IPPacketOutputStream.readPacketVersion(partial))
+        assertEquals(-1, IPPacketOutputStream.readPacketLength(partial))
     }
 }

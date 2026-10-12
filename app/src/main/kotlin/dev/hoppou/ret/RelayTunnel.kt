@@ -25,12 +25,12 @@ import java.io.DataInputStream
 import java.io.IOException
 import java.io.InputStream
 
-class RelayTunnel private constructor() : Tunnel {
+class RelayTunnel private constructor() : ConnectableTunnel {
 
     private val localSocket = LocalSocket()
 
     @Throws(IOException::class)
-    fun connect() {
+    override fun connect() {
         localSocket.connect(LocalSocketAddress(LOCAL_ABSTRACT_NAME))
         readClientId(localSocket.inputStream)
     }

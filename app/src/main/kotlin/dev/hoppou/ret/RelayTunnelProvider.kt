@@ -17,30 +17,32 @@
 
 package dev.hoppou.ret
 
-import android.net.VpnService
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 /**
- * Provide a valid [RelayTunnel], creating a new one if necessary.
+ * Provide a valid tunnel to the relay server, creating a new one if necessary.
+ *
+ * After a failure, a new tunnel is opened only once `retryDelayMs` have elapsed.
  */
 class RelayTunnelProvider(
-    private val vpnService: VpnService,
     private val listener: RelayTunnelListener?,
+    private val retryDelayMs: Long = DELAY_BETWEEN_ATTEMPTS_MS,
+    private val openTunnel: () -> ConnectableTunnel,
 ) {
 
     private val getCurrentTunnelLock = Any() // protects getCurrentTunnel()
     private val stateLock = ReentrantLock() // protects the fields shared with invalidateTunnel()
     private val retryDelayElapsed = stateLock.newCondition()
 
-    private var tunnel: RelayTunnel? = null // protected both by "stateLock" and "getCurrentTunnelLock"
+    private var tunnel: ConnectableTunnel? = null // protected both by "stateLock" and "getCurrentTunnelLock"
     private var first = true // protected by "getCurrentTunnelLock"
     private var lastFailureTimestamp = 0L // protected by "stateLock"
 
     @Throws(IOException::class, InterruptedException::class)
-    fun getCurrentTunnel(): RelayTunnel {
+    fun getCurrentTunnel(): ConnectableTunnel {
         /*
          * To make sure that both the sending and receiving threads use the same tunnel, we must
          * guarantee that this method may not be called several times concurrently.
@@ -59,7 +61,7 @@ class RelayTunnelProvider(
                 waitUntilNextAttemptSlot()
 
                 // "tunnel" has not changed during waiting (only getCurrentTunnel() may write it)
-                RelayTunnel.open(vpnService).also { tunnel = it }
+                openTunnel().also { tunnel = it }
             }
 
             // the first connection must either notify "connected" or "disconnected"
@@ -71,14 +73,14 @@ class RelayTunnelProvider(
     }
 
     @Throws(IOException::class)
-    private fun connectTunnel(tunnel: RelayTunnel, notifyDisconnectedOnError: Boolean) {
+    private fun connectTunnel(tunnel: ConnectableTunnel, notifyDisconnectedOnError: Boolean) {
         try {
             tunnel.connect()
-            listener?.notifyRelayTunnelConnected()
+            listener?.onRelayTunnelConnected()
         } catch (e: IOException) {
             touchFailure()
             if (notifyDisconnectedOnError) {
-                listener?.notifyRelayTunnelDisconnected()
+                listener?.onRelayTunnelDisconnected()
             }
             throw e
         }
@@ -99,7 +101,7 @@ class RelayTunnelProvider(
             touchFailure()
             current.close()
             tunnel = null
-            listener?.notifyRelayTunnelDisconnected()
+            listener?.onRelayTunnelDisconnected()
         }
     }
 
@@ -116,10 +118,10 @@ class RelayTunnelProvider(
             // do not wait on first attempt
             return
         }
-        var delay = lastFailureTimestamp + DELAY_BETWEEN_ATTEMPTS_MS - System.currentTimeMillis()
+        var delay = lastFailureTimestamp + retryDelayMs - System.currentTimeMillis()
         while (delay > 0) {
             retryDelayElapsed.await(delay, TimeUnit.MILLISECONDS)
-            delay = lastFailureTimestamp + DELAY_BETWEEN_ATTEMPTS_MS - System.currentTimeMillis()
+            delay = lastFailureTimestamp + retryDelayMs - System.currentTimeMillis()
         }
     }
 

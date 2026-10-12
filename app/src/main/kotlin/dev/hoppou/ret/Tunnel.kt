@@ -32,3 +32,11 @@ interface Tunnel {
     // blocking
     fun close()
 }
+
+/** A tunnel that must be connected before use */
+interface ConnectableTunnel : Tunnel {
+
+    // blocking
+    @Throws(IOException::class)
+    fun connect()
+}

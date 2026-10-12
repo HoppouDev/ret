@@ -56,6 +56,10 @@ android {
         // changes foreground service and runtime behavior.
         disable += "ExpiredTargetSdkVersion"
     }
+    testOptions {
+        // the code under test logs through android.util.Log, which does nothing in unit tests
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {

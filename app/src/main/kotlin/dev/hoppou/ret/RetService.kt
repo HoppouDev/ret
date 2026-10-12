@@ -25,7 +25,6 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import java.io.IOException
@@ -33,7 +32,20 @@ import java.io.IOException
 class RetService : VpnService() {
 
     private val notifier = Notifier(this)
-    private val handler: Handler = RelayTunnelConnectionStateHandler(this)
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Shows the state of the relay tunnel, reported from the forwarding threads */
+    private val relayTunnelListener = object : RelayTunnelListener {
+        override fun onRelayTunnelConnected() = onMainThread {
+            Log.d(TAG, "Relay tunnel connected")
+            notifier.setFailure(false)
+        }
+
+        override fun onRelayTunnelDisconnected() = onMainThread {
+            Log.d(TAG, "Relay tunnel disconnected")
+            notifier.setFailure(true)
+        }
+    }
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var forwarder: Forwarder? = null
@@ -62,7 +74,7 @@ class RetService : VpnService() {
         val vpnInterface = setupVpn(config) ?: return
         this.vpnInterface = vpnInterface
         setAsUnderlyingNetwork()
-        forwarder = Forwarder(this, vpnInterface.fileDescriptor, RelayTunnelListener(handler)).also {
+        forwarder = Forwarder(this, vpnInterface.fileDescriptor, relayTunnelListener).also {
             it.forward()
         }
     }
@@ -135,28 +147,12 @@ class RetService : VpnService() {
         }
     }
 
-    /**
-     * Receives the events of the relay tunnel on the main thread, where the service runs
-     *
-     * A nested class rather than an inner one, so that the reference to the service is explicit.
-     */
-    private class RelayTunnelConnectionStateHandler(
-        private val service: RetService,
-    ) : Handler(Looper.getMainLooper()) {
-        override fun handleMessage(message: Message) {
-            if (!service.isRunning) {
-                // if the VPN is not running anymore, ignore obsolete events
-                return
-            }
-            when (message.what) {
-                RelayTunnelListener.MSG_RELAY_TUNNEL_CONNECTED -> {
-                    Log.d(TAG, "Relay tunnel connected")
-                    service.notifier.setFailure(false)
-                }
-                RelayTunnelListener.MSG_RELAY_TUNNEL_DISCONNECTED -> {
-                    Log.d(TAG, "Relay tunnel disconnected")
-                    service.notifier.setFailure(true)
-                }
+    /** Run `action` on the main thread, where the service runs, unless the VPN is closed by then */
+    private fun onMainThread(action: () -> Unit) {
+        mainHandler.post {
+            // if the VPN is not running anymore, ignore obsolete events
+            if (isRunning) {
+                action()
             }
         }
     }

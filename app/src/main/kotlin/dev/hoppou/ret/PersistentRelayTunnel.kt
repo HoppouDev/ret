@@ -26,9 +26,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Expose a [Tunnel] that automatically handles [RelayTunnel] reconnections.
  */
-class PersistentRelayTunnel(vpnService: VpnService, listener: RelayTunnelListener?) : Tunnel {
+class PersistentRelayTunnel(private val provider: RelayTunnelProvider) : Tunnel {
 
-    private val provider = RelayTunnelProvider(vpnService, listener)
+    constructor(vpnService: VpnService, listener: RelayTunnelListener?) :
+        this(RelayTunnelProvider(listener) { RelayTunnel.open(vpnService) })
 
     private val stopped = AtomicBoolean()
 
