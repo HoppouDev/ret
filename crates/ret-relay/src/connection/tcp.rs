@@ -201,6 +201,11 @@ impl TcpConnection {
                         }
                         Err(err) => {
                             cx_error!(target: TAG, self.id, "Cannot connect: {}", err);
+                            // the client waits in SYN-SENT, which accepts a RST only if it
+                            // acknowledges the SYN
+                            self.send_empty_packet_to_client(
+                                tcp_header::FLAG_RST | tcp_header::FLAG_ACK,
+                            );
                             None
                         }
                     };
@@ -1109,6 +1114,29 @@ mod tests {
         assert_eq!(ACK, last_ack.flags);
         assert_eq!(CLIENT_ISN + 7, last_ack.ack);
         within(relayed.relay).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn reset_client_when_destination_refuses() {
+        // nothing listens on this port
+        let port = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let destination = SocketAddrV4::new(HOST_ALIAS_IP, port);
+        let (to_client, mut from_relay) = mpsc::channel(16);
+        let (_to_relay, inbound) = mpsc::channel(16);
+        let mut syn = from_device_to(destination, CLIENT_ISN, 0, SYN, WINDOW, &[]);
+        let id = connection_id(&mut syn);
+        let relay = tokio::spawn(TcpConnection::run(id, to_client, syn, inbound));
+
+        let rst = TcpSegment::parse(&next_packet(&mut from_relay).await);
+        assert_eq!(RST | ACK, rst.flags);
+        assert_eq!(CLIENT_ISN + 1, rst.ack);
+        assert_eq!(destination, rst.source);
+        assert_eq!(device(), rst.destination);
+        within(relay).await.unwrap();
     }
 
     #[tokio::test]
