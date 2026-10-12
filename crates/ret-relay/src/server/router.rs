@@ -19,13 +19,11 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
 use tracing::{Level, error, trace, warn};
 
-use super::binary;
 use super::client::ClientSender;
-use super::connection::ConnectionId;
-use super::ipv4_header::Protocol;
-use super::ipv4_packet::Ipv4Packet;
-use super::tcp_connection::TcpConnection;
-use super::udp_connection::UdpConnection;
+use crate::binary;
+use crate::connection::{ConnectionId, TcpConnection, UdpConnection};
+use crate::packet::ipv4_header::Protocol;
+use crate::packet::ipv4_packet::Ipv4Packet;
 
 const TAG: &str = "Router";
 
@@ -110,8 +108,8 @@ impl Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::tcp_header::FLAG_SYN;
-    use crate::relay::test_support::{
+    use crate::packet::transport::tcp::FLAG_SYN;
+    use crate::test_support::{
         DEVICE_IP, HOST_ALIAS_IP, TcpSegment, UdpDatagram, connection_id, other_protocol_packet,
         within,
     };

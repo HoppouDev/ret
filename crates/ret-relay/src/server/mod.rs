@@ -18,7 +18,11 @@ use std::io;
 use tokio::runtime;
 use tracing::info;
 
-use super::tunnel_server;
+mod client;
+mod router;
+mod tunnel;
+
+pub use client::ClientSender;
 
 const TAG: &str = "Relay";
 
@@ -37,9 +41,9 @@ impl Relay {
             .enable_all()
             .build()?;
         runtime.block_on(async {
-            let listener = tunnel_server::bind(self.port).await?;
+            let listener = tunnel::bind(self.port).await?;
             info!(target: TAG, "Relay server started");
-            tunnel_server::serve(listener).await;
+            tunnel::serve(listener).await;
             Ok(())
         })
     }

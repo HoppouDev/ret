@@ -17,9 +17,9 @@
 use std::fmt;
 use std::net::SocketAddrV4;
 
-use super::ipv4_header::{Ipv4HeaderData, Protocol};
-use super::net;
-use super::transport_header::TransportHeaderData;
+use crate::net;
+use crate::packet::ipv4_header::{Ipv4HeaderData, Protocol};
+use crate::packet::transport::TransportHeaderData;
 
 const LOCALHOST_FORWARD: u32 = 0x0A_00_02_02; // 10.0.2.2
 const LOCALHOST: u32 = 0x7F_00_00_01; // 127.0.0.1
@@ -78,50 +78,9 @@ impl fmt::Display for ConnectionId {
     }
 }
 
-// macros to log connection id along with the message
-
-macro_rules! cx_format {
-    ($id:tt, $str:tt, $($arg:tt)+) => {
-        format!(concat!("{} ", $str), $id, $($arg)+)
-    };
-    ($id:tt, $str:tt) => {
-        format!(concat!("{} ", $str), $id)
-    };
-}
-
-macro_rules! cx_trace {
-    (target: $target:expr, $id:expr, $($arg:tt)*) => {
-        tracing::trace!(target: $target, "{}", cx_format!($id, $($arg)+))
-    }
-}
-
-macro_rules! cx_debug {
-    (target: $target:expr, $id:expr, $($arg:tt)*) => {
-        tracing::debug!(target: $target, "{}", cx_format!($id, $($arg)+))
-    }
-}
-
-macro_rules! cx_info {
-    (target: $target:expr, $id:expr, $($arg:tt)*) => {
-        tracing::info!(target: $target, "{}", cx_format!($id, $($arg)+))
-    }
-}
-
-macro_rules! cx_warn {
-    (target: $target:expr, $id:expr, $($arg:tt)*) => {
-        tracing::warn!(target: $target, "{}", cx_format!($id, $($arg)+))
-    }
-}
-
-macro_rules! cx_error {
-    (target: $target:expr, $id:expr, $($arg:tt)*) => {
-        tracing::error!(target: $target, "{}", cx_format!($id, $($arg)+))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::relay::test_support::{DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, connection_id};
+    use crate::test_support::{DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, connection_id};
     use std::net::{Ipv4Addr, SocketAddrV4};
 
     fn id_to(destination: SocketAddrV4) -> super::ConnectionId {

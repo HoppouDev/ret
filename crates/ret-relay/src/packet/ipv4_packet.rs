@@ -15,7 +15,7 @@
  */
 
 use super::ipv4_header::{Ipv4Header, Ipv4HeaderData, Ipv4HeaderMut};
-use super::transport_header::{TransportHeader, TransportHeaderData, TransportHeaderMut};
+use super::transport::{TransportHeader, TransportHeaderData, TransportHeaderMut};
 
 pub const MAX_PACKET_LENGTH: usize = 1 << 16;
 
@@ -230,7 +230,7 @@ impl<'a> Ipv4Packet<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::ipv4_header::Protocol;
+    use crate::packet::ipv4_header::Protocol;
     use byteorder::{BigEndian, WriteBytesExt};
 
     fn create_packet() -> Vec<u8> {

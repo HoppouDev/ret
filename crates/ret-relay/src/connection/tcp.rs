@@ -24,16 +24,16 @@ use tokio::sync::mpsc::Receiver;
 use tokio::task::coop;
 use tracing::Level;
 
-use super::binary;
-use super::client::ClientSender;
-use super::connection::ConnectionId;
-use super::datagram::{TryRead, TryWrite};
-use super::ipv4_packet::{Ipv4Packet, MAX_PACKET_LENGTH};
+use super::id::ConnectionId;
 use super::outbox::Outbox;
-use super::packetizer::Packetizer;
-use super::stream_buffer::StreamBuffer;
-use super::tcp_header::{self, TcpHeader, TcpHeaderMut};
-use super::transport_header::{TransportHeader, TransportHeaderMut};
+use crate::binary;
+use crate::buffer::StreamBuffer;
+use crate::datagram::{TryRead, TryWrite};
+use crate::packet::ipv4_packet::{Ipv4Packet, MAX_PACKET_LENGTH};
+use crate::packet::packetizer::Packetizer;
+use crate::packet::transport::tcp::{self as tcp_header, TcpHeader, TcpHeaderMut};
+use crate::packet::transport::{TransportHeader, TransportHeaderMut};
+use crate::server::ClientSender;
 
 const TAG: &str = "TcpConnection";
 
@@ -700,7 +700,7 @@ impl TcpConnection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::test_support::{
+    use crate::test_support::{
         DEVICE_IP, HOST_ALIAS_IP, TcpSegment, connection_id, next_packet, within,
     };
     use std::net::{Ipv4Addr, SocketAddrV4};

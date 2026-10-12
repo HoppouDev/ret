@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-use super::ipv4_header::{Ipv4HeaderData, Protocol};
-use super::tcp_header::{TcpHeader, TcpHeaderData, TcpHeaderMut};
-use super::udp_header::{UDP_HEADER_LENGTH, UdpHeader, UdpHeaderData, UdpHeaderMut};
+pub mod tcp;
+pub mod udp;
+
+use self::tcp::{TcpHeader, TcpHeaderData, TcpHeaderMut};
+use self::udp::{UDP_HEADER_LENGTH, UdpHeader, UdpHeaderData, UdpHeaderMut};
+use crate::packet::ipv4_header::{Ipv4HeaderData, Protocol};
 
 pub enum TransportHeader<'a> {
     Tcp(TcpHeader<'a>),

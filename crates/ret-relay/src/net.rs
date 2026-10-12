@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use super::binary;
+use crate::binary;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 pub fn to_addr(ipv4: u32) -> Ipv4Addr {

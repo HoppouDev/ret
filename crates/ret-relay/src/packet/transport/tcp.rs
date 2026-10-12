@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use super::ipv4_header::Ipv4HeaderData;
+use crate::packet::ipv4_header::Ipv4HeaderData;
 use byteorder::{BigEndian, ByteOrder};
 use std::mem;
 
@@ -363,8 +363,8 @@ impl<'a> TcpHeaderMut<'a> {
 #[allow(clippy::identity_op)]
 mod tests {
     use super::*;
-    use crate::relay::ipv4_packet::Ipv4Packet;
-    use crate::relay::transport_header::TransportHeaderMut;
+    use crate::packet::ipv4_packet::Ipv4Packet;
+    use crate::packet::transport::TransportHeaderMut;
     use byteorder::{BigEndian, WriteBytesExt};
 
     fn create_packet() -> Vec<u8> {

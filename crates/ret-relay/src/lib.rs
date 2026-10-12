@@ -16,9 +16,18 @@
 
 //! Relay server of ret: forwards the IP packets of the Android clients to the network
 
-mod relay;
+mod binary;
+mod buffer;
+#[macro_use]
+mod connection;
+mod datagram;
+mod net;
+mod packet;
+mod server;
+#[cfg(test)]
+mod test_support;
 
-use crate::relay::Relay;
+use crate::server::Relay;
 use std::io;
 
 /// Run the relay server on `port` of localhost, until an error occurs

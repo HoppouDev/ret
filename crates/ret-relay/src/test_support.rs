@@ -6,8 +6,8 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time;
 
-use super::connection::ConnectionId;
-use super::ipv4_packet::Ipv4Packet;
+use crate::connection::ConnectionId;
+use crate::packet::ipv4_packet::Ipv4Packet;
 
 /// Address of the device in the tunnel
 pub const DEVICE_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 2);

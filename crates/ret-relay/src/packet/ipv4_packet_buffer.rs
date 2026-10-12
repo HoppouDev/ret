@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-use super::binary;
-use super::byte_buffer::ByteBuffer;
 use super::ipv4_header;
 use super::ipv4_packet::{Ipv4Packet, MAX_PACKET_LENGTH};
+use crate::binary;
+use crate::buffer::ByteBuffer;
 
 use std::io;
 use tracing::trace;
@@ -76,8 +76,8 @@ impl Ipv4PacketBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::ipv4_header::Protocol;
-    use crate::relay::transport_header::TransportHeaderData;
+    use crate::packet::ipv4_header::Protocol;
+    use crate::packet::transport::TransportHeaderData;
     use byteorder::{BigEndian, WriteBytesExt};
     use std::io;
 

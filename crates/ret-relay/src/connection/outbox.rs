@@ -19,7 +19,7 @@ use std::pin::Pin;
 use tokio::sync::mpsc::OwnedPermit;
 use tokio::sync::mpsc::error::{SendError, TrySendError};
 
-use super::client::ClientSender;
+use crate::server::ClientSender;
 
 type Reserve = Pin<Box<dyn Future<Output = Result<OwnedPermit<Vec<u8>>, SendError<()>>> + Send>>;
 

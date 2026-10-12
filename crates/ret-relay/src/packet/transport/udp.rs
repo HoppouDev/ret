@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use super::ipv4_header::Ipv4HeaderData;
+use crate::packet::ipv4_header::Ipv4HeaderData;
 use byteorder::{BigEndian, ByteOrder};
 use std::mem;
 

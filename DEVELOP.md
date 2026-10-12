@@ -243,9 +243,9 @@ socket is handled by its own asynchronous task:
 
 Tasks exchange packets through bounded channels ([`mpsc`][tokio/mpsc]).
 
-[rust/relay]: crates/ret-relay/src/relay/relay.rs
-[rust/tunnel-server]: crates/ret-relay/src/relay/tunnel\_server.rs
-[rust/client]: crates/ret-relay/src/relay/client.rs
+[rust/relay]: crates/ret-relay/src/server/mod.rs
+[rust/tunnel-server]: crates/ret-relay/src/server/tunnel.rs
+[rust/client]: crates/ret-relay/src/server/client.rs
 [tokio/mpsc]: https://docs.rs/tokio/1/tokio/sync/mpsc/index.html
 
 ![archi](assets/archi.png)
@@ -275,7 +275,7 @@ and a connection). The packets for the device are copied once more when the
 client batches them into a single write. Otherwise, the packets just point to
 the buffer where they are stored.
 
-[rust/ipv4-packet]: crates/ret-relay/src/relay/ipv4\_packet.rs
+[rust/ipv4-packet]: crates/ret-relay/src/packet/ipv4\_packet.rs
 
 Each packet contains an instance of _IPv4 headers_ and _transport headers_
 (which might be _TCP_ or _UDP_ headers).
@@ -285,15 +285,15 @@ the raw packet buffer. Therefore, _header data_ classes (`*HeaderData`) are used
 to store the fields, and lifetime-bound views (`*Header<'a>` and
 `*HeaderMut<'a>`) reference both the raw array and the _header data_:
 
- - [`ipv4_header`][rust/ipv4-header]:
+ - [`packet::ipv4_header`][rust/ipv4-header]:
    - data: `Ipv4HeaderData`
    - view: `Ipv4Header<'a>`
    - mutable view: `Ipv4HeaderMut<'a>`
- - [`tcp_header`][rust/tcp-header]:
+ - [`packet::transport::tcp`][rust/tcp-header]:
    - data: `TcpHeaderData`
    - view: `TcpHeader<'a>`
    - mutable view: `TcpHeaderMut<'a>`
- - [`udp_header`][rust/udp-header]:
+ - [`packet::transport::udp`][rust/udp-header]:
    - data: `UdpHeaderData`
    - view: `UdpHeader<'a>`
    - mutable view: `UdpHeaderMut<'a>`
@@ -301,15 +301,15 @@ to store the fields, and lifetime-bound views (`*Header<'a>` and
 In addition, we use [enums][rust-enums] for _transport headers_ to statically
 dispatch calls to _UDP_ and _TCP_ header classes:
 
- - [`transport_header`][rust/transport-header]:
+ - [`packet::transport`][rust/transport-header]:
    - data: `TransportHeaderData`
    - view: `TransportHeader<'a>`
    - mutable view: `TransportHeaderMut<'a>`
 
-[rust/ipv4-header]: crates/ret-relay/src/relay/ipv4\_header.rs
-[rust/tcp-header]: crates/ret-relay/src/relay/tcp\_header.rs
-[rust/udp-header]: crates/ret-relay/src/relay/udp\_header.rs
-[rust/transport-header]: crates/ret-relay/src/relay/transport\_header.rs
+[rust/ipv4-header]: crates/ret-relay/src/packet/ipv4\_header.rs
+[rust/tcp-header]: crates/ret-relay/src/packet/transport/tcp.rs
+[rust/udp-header]: crates/ret-relay/src/packet/transport/udp.rs
+[rust/transport-header]: crates/ret-relay/src/packet/transport/mod.rs
 [rust-enums]: https://doc.rust-lang.org/book/first-edition/enums.html
 
 
@@ -332,8 +332,8 @@ associated _connection_.
 The router keeps the sending side of the channel of each _connection_. When
 this channel is full, the packet is dropped (see below why this is safe).
 
-[rust/router]: crates/ret-relay/src/relay/router.rs
-[rust/connection]: crates/ret-relay/src/relay/connection.rs
+[rust/router]: crates/ret-relay/src/server/router.rs
+[rust/connection]: crates/ret-relay/src/connection/id.rs
 
 
 ### Connections
@@ -346,9 +346,9 @@ sends its packets to the client channel, in order, through an
 [_outbox_][rust/outbox]: the packets which do not fit in the client channel
 wait there until it has room.
 
-[rust/tcp-connection]: crates/ret-relay/src/relay/tcp\_connection.rs
-[rust/udp-connection]: crates/ret-relay/src/relay/udp\_connection.rs
-[rust/outbox]: crates/ret-relay/src/relay/outbox.rs
+[rust/tcp-connection]: crates/ret-relay/src/connection/tcp.rs
+[rust/udp-connection]: crates/ret-relay/src/connection/udp.rs
+[rust/outbox]: crates/ret-relay/src/connection/outbox.rs
 
 The connection is responsible for converting data from level 3 to level 5 for
 device-to-network packets, and from level 5 to level 3 for network-to-device
@@ -362,7 +362,7 @@ in such a way as to ensure a correct end-to-end communication.
 A _packetizer_ ([`Packetizer`][rust/packetizer]) converts from level 5 to level
 3 by appending correct IP and transport headers.
 
-[rust/packetizer]: crates/ret-relay/src/relay/packetizer.rs
+[rust/packetizer]: crates/ret-relay/src/packet/packetizer.rs
 
 
 #### UDP connection

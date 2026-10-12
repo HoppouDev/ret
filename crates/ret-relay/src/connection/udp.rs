@@ -23,12 +23,12 @@ use tokio::task::coop;
 use tokio::time::{self, Instant};
 use tracing::Level;
 
-use super::binary;
-use super::client::ClientSender;
-use super::connection::ConnectionId;
-use super::ipv4_packet::{Ipv4Packet, MAX_PACKET_LENGTH};
+use super::id::ConnectionId;
 use super::outbox::Outbox;
-use super::packetizer::Packetizer;
+use crate::binary;
+use crate::packet::ipv4_packet::{Ipv4Packet, MAX_PACKET_LENGTH};
+use crate::packet::packetizer::Packetizer;
+use crate::server::ClientSender;
 
 const TAG: &str = "UdpConnection";
 
@@ -181,7 +181,7 @@ impl UdpConnection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::test_support::{
+    use crate::test_support::{
         DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, connection_id, next_packet, within,
     };
     use std::net::SocketAddrV4;

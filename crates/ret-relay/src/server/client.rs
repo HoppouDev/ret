@@ -21,10 +21,10 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::mpsc;
 use tracing::{debug, error};
 
-use super::binary;
-use super::datagram::TryRead;
-use super::ipv4_packet_buffer::Ipv4PacketBuffer;
 use super::router::Router;
+use crate::binary;
+use crate::datagram::TryRead;
+use crate::packet::ipv4_packet_buffer::Ipv4PacketBuffer;
 
 const TAG: &str = "Client";
 
@@ -108,7 +108,7 @@ async fn read_loop(reader: OwnedReadHalf, mut router: Router) -> io::Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::test_support::{DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, within};
+    use crate::test_support::{DEVICE_IP, HOST_ALIAS_IP, UdpDatagram, within};
     use byteorder::{BigEndian, ByteOrder};
     use std::net::{Ipv4Addr, SocketAddrV4};
     use tokio::io::AsyncReadExt;

@@ -16,10 +16,10 @@
 
 use std::io;
 
-use super::datagram::{DatagramReceiver, ReadAdapter};
 use super::ipv4_header::{Ipv4Header, Ipv4HeaderData, Ipv4HeaderMut};
 use super::ipv4_packet::{Ipv4Packet, MAX_PACKET_LENGTH};
-use super::transport_header::{TransportHeader, TransportHeaderData, TransportHeaderMut};
+use super::transport::{TransportHeader, TransportHeaderData, TransportHeaderMut};
+use crate::datagram::{DatagramReceiver, ReadAdapter};
 
 /// Convert from level 5 to level 3 by appending correct IP and transport headers.
 ///
@@ -128,7 +128,7 @@ impl Packetizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::datagram::tests::MockDatagramSocket;
+    use crate::datagram::tests::MockDatagramSocket;
     use byteorder::{BigEndian, WriteBytesExt};
     use std::io;
 
