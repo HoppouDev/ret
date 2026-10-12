@@ -1,12 +1,26 @@
+use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Args, Parser, Subcommand, value_parser};
 use ret_adb::client::StartOptions;
 
 /// Port the relay server listens on when none is given
 pub const DEFAULT_PORT: u16 = 31416;
 
+/// Colors of the help and error messages, the same palette as cargo
+///
+/// The terminal theme picks the actual colors, and they are dropped when the output is not a
+/// terminal or `NO_COLOR` is set.
+const STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Green.on_default().effects(Effects::BOLD))
+    .usage(AnsiColor::Green.on_default().effects(Effects::BOLD))
+    .literal(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
+    .placeholder(AnsiColor::Cyan.on_default())
+    .error(AnsiColor::Red.on_default().effects(Effects::BOLD))
+    .valid(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
+    .invalid(AnsiColor::Yellow.on_default().effects(Effects::BOLD));
+
 /// Reverse tethering for Android over adb
 #[derive(Debug, Parser)]
-#[command(name = "ret", version, arg_required_else_help = true)]
+#[command(name = "ret", version, arg_required_else_help = true, styles = STYLES)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
