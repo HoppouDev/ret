@@ -22,8 +22,9 @@ android {
         applicationId = "dev.hoppou.ret"
         minSdk = 21
         targetSdk = 29
-        versionCode = 9
-        versionName = "2.5.1"
+        // set by `cog bump`, along with the version of the Rust crates
+        versionName = "3.0.1"
+        versionCode = versionCodeOf(versionName!!)
     }
     buildFeatures {
         buildConfig = true
@@ -76,4 +77,17 @@ val checkstyleTask = tasks.register<Checkstyle>("checkstyle") {
 
 tasks.named("check") {
     dependsOn(checkstyleTask)
+}
+
+/**
+ * The versionCode of a version: 10000 * major + 100 * minor + patch (3.0.2 gives 30002)
+ *
+ * It increases with every release, so that Android accepts the upgrade. ret computes the same
+ * value from its own version (`VERSION_CODE` in crates/ret-adb/src/client.rs) to decide whether
+ * the app on the device must be installed again.
+ */
+fun versionCodeOf(version: String): Int {
+    val (major, minor, patch) = version.substringBefore('-').split('.').map(String::toInt)
+    require(minor < 100 && patch < 100) { "Minor and patch must be below 100: $version" }
+    return 10000 * major + 100 * minor + patch
 }

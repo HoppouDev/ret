@@ -21,8 +21,15 @@ pub struct StartOptions {
 const PACKAGE: &str = "dev.hoppou.ret";
 const ACTIVITY: &str = "dev.hoppou.ret/.RetActivity";
 
-/// `versionCode` of the app this program works with, see `app/build.gradle`
-const VERSION_CODE: &str = "9";
+/// `versionCode` of the app this program works with, derived from the version of the app the same
+/// way as `versionCodeOf()` in `app/build.gradle.kts`
+///
+/// `cog bump` gives the same version to the app and to the crates.
+const VERSION_CODE: u32 = version_code(
+    env!("CARGO_PKG_VERSION_MAJOR"),
+    env!("CARGO_PKG_VERSION_MINOR"),
+    env!("CARGO_PKG_VERSION_PATCH"),
+);
 
 /// Name of the abstract socket the app connects to on the device
 const SOCKET_NAME: &str = "ret";
@@ -50,7 +57,8 @@ pub fn uninstall(adb: &Adb) -> Result<(), Error> {
 pub fn start(adb: &Adb, options: &StartOptions) -> Result<(), Error> {
     info!("Checking the client");
     let dumpsys = adb.output(&["shell", "dumpsys", "package", PACKAGE])?;
-    if installed_version_code(&dumpsys) != Some(VERSION_CODE) {
+    let installed = installed_version_code(&dumpsys).and_then(|code| code.parse().ok());
+    if installed != Some(VERSION_CODE) {
         install(adb)?;
         thread::sleep(INSTALL_SETTLE_DELAY);
     }
@@ -113,6 +121,28 @@ fn installed_version_code(dumpsys: &str) -> Option<&str> {
         .find_map(|token| token.strip_prefix("versionCode="))
 }
 
+/// 10000 * major + 100 * minor + patch, from the version components given by Cargo
+const fn version_code(major: &str, minor: &str, patch: &str) -> u32 {
+    let (minor, patch) = (parse(minor), parse(patch));
+    assert!(
+        minor < 100 && patch < 100,
+        "minor and patch must be below 100"
+    );
+    10000 * parse(major) + 100 * minor + patch
+}
+
+const fn parse(number: &str) -> u32 {
+    let digits = number.as_bytes();
+    let mut value = 0;
+    let mut i = 0;
+    while i < digits.len() {
+        assert!(digits[i].is_ascii_digit(), "not a number");
+        value = value * 10 + (digits[i] - b'0') as u32;
+        i += 1;
+    }
+    value
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +159,13 @@ mod tests {
     fn no_version_code_when_not_installed() {
         let dumpsys = "Dexopt state:\n  Unable to find package: dev.hoppou.ret\n";
         assert_eq!(None, installed_version_code(dumpsys));
+    }
+
+    #[test]
+    fn version_code_matches_the_app_formula() {
+        // same values as versionCodeOf() in app/build.gradle.kts
+        assert_eq!(30002, version_code("3", "0", "2"));
+        assert_eq!(31099, version_code("3", "10", "99"));
+        assert_eq!(100000, version_code("10", "0", "0"));
     }
 }
