@@ -1,0 +1,16 @@
+[package]
+name = "ret-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+catppuccin.workspace = true
+iced.workspace = true
+iced_fonts.workspace = true
+ret-adb.workspace = true
+ret-relay.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -229,7 +229,10 @@ The relay server is a _Rust_ library located in
 the devices through `adb` lives in the
 [`crates/ret-adb/`](crates/ret-adb/) library. The `ret` program, built from
 [`crates/ret-cli/`](crates/ret-cli/), is the command-line interface on top of
-both.
+both, and the `ret-ui` window, built from [`crates/ret-ui/`](crates/ret-ui/)
+with [iced], is the graphical one.
+
+[iced]: https://iced.rs/
 
 The relay server uses [asynchronous I/O] (through [tokio]). As a consequence,
 it is essentially monothreaded, so there is no need for synchronization to

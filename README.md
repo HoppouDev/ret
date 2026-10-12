@@ -138,6 +138,22 @@ For advanced options, run `./ret --help`, or `./ret help <command>` for the
 details of one command (for example `./ret help start`).
 
 
+## Graphical interface
+
+`ret-ui` is a window that does the same as the commands above: start and stop
+the relay server, set the port, DNS servers and routes, and start, stop,
+reinstall or reset the tunnel of each connected device. It can also start every
+device automatically as soon as it is connected, and shows the logs.
+
+It is not in the release archives yet. Build it from the sources with
+[Rust](https://www.rust-lang.org/) installed:
+
+    cargo build --release -p ret-ui
+    ./target/release/ret-ui
+
+It reads the same [environment variables](#environment-variables) as `ret`.
+
+
 ## Run manually
 
 The `ret` program exposes a simple command-line interface that executes
