@@ -1,0 +1,7 @@
+[package]
+name = "ret-adb"
+version = "2.5.1"
+edition = "2024"
+
+[dependencies]
+tracing.workspace = true
