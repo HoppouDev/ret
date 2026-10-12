@@ -134,7 +134,8 @@ unplugged and plugged back while ret is active):
 The _serial_ parameter is required only if `adb devices` outputs more than one
 device.
 
-For advanced options, call `./ret` without arguments to get more details.
+For advanced options, run `./ret --help`, or `./ret help <command>` for the
+details of one command (for example `./ret help start`).
 
 
 ## Run manually

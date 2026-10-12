@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+//! Relay server of ret: forwards the IP packets of the Android clients to the network
+
 mod relay;
-pub use crate::relay::byte_buffer;
 
 use crate::relay::Relay;
 use std::io;
 
+/// Run the relay server on `port` of localhost, until an error occurs
+///
+/// The clients reach it through `adb reverse`. All the connections are relayed on the
+/// current thread.
 pub fn relay(port: u16) -> io::Result<()> {
     Relay::new(port).run()
 }

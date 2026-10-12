@@ -1,0 +1,16 @@
+[package]
+name = "ret-cli"
+version = "2.5.1"
+edition = "2024"
+
+[[bin]]
+name = "ret"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+ctrlc.workspace = true
+ret-adb = { version = "2.5.1", path = "../ret-adb" }
+ret-relay = { version = "2.5.1", path = "../ret-relay" }
+tracing.workspace = true
+tracing-subscriber.workspace = true

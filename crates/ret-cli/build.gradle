@@ -7,11 +7,11 @@ tasks.register('release', Exec) {
 }
 
 tasks.register('test', Exec) {
-    commandLine 'cargo', 'test'
+    commandLine 'cargo', 'test', '--workspace'
 }
 
 tasks.register('install', Exec) {
-    commandLine 'cargo', 'install'
+    commandLine 'cargo', 'install', '--path', '.'
 }
 
 tasks.register('clean', Exec) {
@@ -19,7 +19,7 @@ tasks.register('clean', Exec) {
 }
 
 tasks.register('checkstyle', Exec) {
-    commandLine 'cargo', 'fmt', '--', '--check'
+    commandLine 'cargo', 'fmt', '--all', '--', '--check'
 }
 
 tasks.register('check') {

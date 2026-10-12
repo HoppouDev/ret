@@ -15,5 +15,5 @@ dependencyResolutionManagement {
 
 rootProject.name = 'ret'
 
-include ':app', ':relay'
-project(':relay').projectDir = file('crates/ret-relay')
+include ':app', ':cli'
+project(':cli').projectDir = file('crates/ret-cli')

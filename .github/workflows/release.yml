@@ -119,7 +119,7 @@ jobs:
           chmod 755 "dist/$linux/ret"
           strip "dist/$linux/ret"
           cp bin/apk/ret-release.apk "dist/$linux/ret.apk"
-          cp bin/binary-windows/ret.exe crates/ret-relay/scripts/ret-run.cmd "dist/$windows/"
+          cp bin/binary-windows/ret.exe crates/ret-cli/scripts/ret-run.cmd "dist/$windows/"
           cp bin/apk/ret-release.apk "dist/$windows/ret.apk"
 
           cd dist

@@ -15,7 +15,7 @@
  */
 
 pub use self::relay::Relay;
-pub mod byte_buffer;
+mod byte_buffer;
 
 mod binary;
 mod client;

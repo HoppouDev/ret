@@ -28,7 +28,7 @@ done
 cp target/release/ret "$DIST/$TARGET_DIR_RUST_LINUX"/
 strip "$DIST/$TARGET_DIR_RUST_LINUX"/ret  # remove symbols for smaller binary
 cp target/x86_64-pc-windows-gnu/release/ret.exe \
-   crates/ret-relay/scripts/ret-run.cmd \
+   crates/ret-cli/scripts/ret-run.cmd \
    "$DIST/$TARGET_DIR_RUST_WIN"/
 
 cd "$DIST"

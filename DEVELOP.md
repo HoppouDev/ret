@@ -217,10 +217,14 @@ of [`IPPacketOutputStream`].
 
 ## Relay server
 
-The relay server is a _Rust_ project located in
-[`crates/ret-relay/`](crates/ret-relay/).
+The relay server is a _Rust_ library located in
+[`crates/ret-relay/`](crates/ret-relay/). The control of the clients and of
+the devices through `adb` lives in the
+[`crates/ret-adb/`](crates/ret-adb/) library. The `ret` program, built from
+[`crates/ret-cli/`](crates/ret-cli/), is the command-line interface on top of
+both.
 
-It is implemented using [asynchronous I/O] (through [tokio]). As a consequence,
+The relay server uses [asynchronous I/O] (through [tokio]). As a consequence,
 it is essentially monothreaded, so there is no need for synchronization to
 handle packets.
 

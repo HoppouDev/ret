@@ -9,17 +9,17 @@ tasks.register('clean', Delete) {
 }
 
 tasks.register('debugAll') {
-    dependsOn ':app:assembleDebug', ':relay:debug'
+    dependsOn ':app:assembleDebug', ':cli:debug'
 }
 
 tasks.register('releaseAll') {
-    dependsOn ':app:assembleRelease', ':relay:release'
+    dependsOn ':app:assembleRelease', ':cli:release'
 }
 
 tasks.register('releaseWindows') {
-    dependsOn ':app:assembleRelease', ':relay:releaseCrossToWindows'
+    dependsOn ':app:assembleRelease', ':cli:releaseCrossToWindows'
 }
 
 tasks.register('checkAll') {
-    dependsOn ':app:check', ':relay:check'
+    dependsOn ':app:check', ':cli:check'
 }
