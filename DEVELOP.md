@@ -111,6 +111,9 @@ On every push, GitHub Actions runs the relay server tests (`cargo test`).
 To release, create the version tag with `cog bump --auto` (or a specific
 `--major`, `--minor` or `--patch`), then push the bump commit and the new tag,
 for example `git push origin master v2.6.0`.
+The bump commit also sets the version of the Rust crates (`[workspace.package]`
+in `Cargo.toml`) to the new version, so it always matches the latest tag. The
+hook that does it needs a POSIX shell with `sed`.
 Pushing a `v*` tag builds the relay server for Linux and Windows and the signed
 Android application, then publishes a GitHub release with the `ret-linux64` and
 `ret-win64` zips, their `SHA256SUMS.txt`, and the changelog of the version

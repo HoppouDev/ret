@@ -3,6 +3,14 @@ tag_prefix = "v"
 from_latest_tag = true
 ignore_merge_commits = true
 branch_whitelist = ["master"]
+# Set the version of the crates (`[workspace.package]` in Cargo.toml) to the new tag, and commit it
+# along with the changelog
+pre_bump_hooks = [
+  "sed -i.bak 's/^version = \".*\"$/version = \"{{version}}\"/' Cargo.toml",
+  "rm Cargo.toml.bak",
+  "cargo update --workspace --offline",
+  "git add Cargo.toml Cargo.lock",
+]
 
 [changelog]
 path = "CHANGELOG.md"
