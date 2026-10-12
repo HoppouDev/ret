@@ -126,6 +126,23 @@ class IPPacketOutputStreamTest {
         assertArrayEquals(rawPacket, bos.toByteArray())
     }
 
+    @Test(timeout = 5000)
+    fun dropPacketsShorterThanAHeader() {
+        val bos = ByteArrayOutputStream()
+        val pos = IPPacketOutputStream(bos)
+
+        for (length in listOf(0, 4, 19)) {
+            // a length of 0 used to loop forever, a short one emitted a truncated packet
+            pos.write(byteArrayOf(0x45, 0, 0, length.toByte()), 0, 4)
+            assertEquals("Length $length", 0, bos.size())
+        }
+
+        // the stream recovers on the next packet
+        val rawPacket = createMockPacket().array()
+        pos.write(rawPacket, 0, rawPacket.size)
+        assertArrayEquals(rawPacket, bos.toByteArray())
+    }
+
     @Test(expected = IOException::class)
     fun rejectMoreThanOnePacketAtOnce() {
         IPPacketOutputStream(ByteArrayOutputStream()).write(ByteArray(0x10001), 0, 0x10001)

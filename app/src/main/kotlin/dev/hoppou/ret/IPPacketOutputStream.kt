@@ -85,14 +85,22 @@ class IPPacketOutputStream(private val target: OutputStream) : OutputStream() {
         }
         if (version != 4) {
             Log.e(TAG, "Unsupported packet received, IP version is:$version")
-            Log.d(TAG, "Clearing buffer")
-            // the buffer is in read mode: consume everything, so that compact() leaves it empty
-            buffer.position(buffer.limit())
+            discardBuffer()
             return false
         }
         val packetLength = readPacketLength(buffer)
-        if (packetLength == -1 || packetLength > buffer.remaining()) {
-            // no packet
+        if (packetLength == -1) {
+            // the length field is not received yet
+            return false
+        }
+        if (packetLength < MIN_IP_PACKET_LENGTH) {
+            // a length of 0 would never consume anything, and loop forever
+            Log.e(TAG, "Invalid packet received, length is:$packetLength")
+            discardBuffer()
+            return false
+        }
+        if (packetLength > buffer.remaining()) {
+            // the packet is not complete yet
             return false
         }
 
@@ -101,11 +109,19 @@ class IPPacketOutputStream(private val target: OutputStream) : OutputStream() {
         return true
     }
 
+    private fun discardBuffer() {
+        Log.d(TAG, "Clearing buffer")
+        // the buffer is in read mode: consume everything, so that compact() leaves it empty
+        buffer.position(buffer.limit())
+    }
+
     companion object {
 
         private const val TAG = "IPPacketOutputStream"
 
         private const val MAX_IP_PACKET_LENGTH = 1 shl 16 // packet length is stored on 16 bits
+
+        private const val MIN_IP_PACKET_LENGTH = 20 // an IPv4 header without options
 
         /**
          * Read the packet IP version, assuming that an IP packet is stored at the buffer position.
