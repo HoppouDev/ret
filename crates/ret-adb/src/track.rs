@@ -16,19 +16,47 @@ const RETRY_DELAY: Duration = Duration::from_secs(1);
 /// Wait before reconnecting when the adb server could not be started
 const RETRY_DELAY_SERVER_DOWN: Duration = Duration::from_secs(5);
 
+/// A device known to adb
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Device {
+    pub serial: String,
+    /// State reported by adb: `device` when usable, otherwise `unauthorized`, `offline`...
+    pub state: String,
+}
+
+impl Device {
+    /// Whether adb can run commands on the device
+    pub fn is_available(&self) -> bool {
+        self.state == "device"
+    }
+}
+
 /// Call `on_connected` with the serial of every device that becomes available, forever
 ///
 /// The devices already connected count as new. When the adb server cannot be reached, it is
 /// started.
 pub fn watch_devices(adb: &Adb, mut on_connected: impl FnMut(&str)) -> ! {
+    let mut available = Available::default();
+    watch_device_lists(adb, |devices| {
+        for serial in available.update(&devices) {
+            on_connected(&serial);
+        }
+    })
+}
+
+/// Call `on_list` with every device known to adb whenever the list changes, forever
+///
+/// When the connection to the adb server is lost, `on_list` gets an empty list and the server is
+/// started. A restarted server lost the reverse tunnels, so the devices are then reported again
+/// as new.
+pub fn watch_device_lists(adb: &Adb, mut on_list: impl FnMut(Vec<Device>)) -> ! {
     loop {
-        // a restarted adb server lost the reverse tunnels, so the devices are started again
-        let mut devices = Devices::default();
         let result = TcpStream::connect((Ipv4Addr::LOCALHOST, SERVER_PORT))
-            .and_then(|stream| track(stream, &mut devices, &mut on_connected));
+            .and_then(|stream| track(stream, &mut on_list));
         if let Err(err) = result {
             error!("Cannot track the adb devices: {err}");
         }
+        on_list(Vec::new());
         info!("Starting the adb server");
         match adb.run(&["start-server"]) {
             Ok(()) => thread::sleep(RETRY_DELAY),
@@ -41,20 +69,26 @@ pub fn watch_devices(adb: &Adb, mut on_connected: impl FnMut(&str)) -> ! {
 }
 
 /// Follow the device list on a connection to the adb server, until it fails
-fn track(
-    mut stream: TcpStream,
-    devices: &mut Devices,
-    on_connected: &mut impl FnMut(&str),
-) -> io::Result<()> {
+fn track(mut stream: TcpStream, on_list: &mut impl FnMut(Vec<Device>)) -> io::Result<()> {
     write_request(&mut stream, "host:track-devices")?;
     let mut reader = BufReader::new(stream);
     read_status(&mut reader)?;
     loop {
-        let list = read_message(&mut reader)?;
-        for serial in devices.update(&list) {
-            on_connected(&serial);
-        }
+        on_list(parse_devices(&read_message(&mut reader)?));
     }
+}
+
+/// Parse a `track-devices` message: one `serial<TAB>state` line per device
+fn parse_devices(list: &str) -> Vec<Device> {
+    list.lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            Some(Device {
+                serial: fields.next()?.to_owned(),
+                state: fields.next()?.to_owned(),
+            })
+        })
+        .collect()
 }
 
 fn write_request(stream: &mut impl Write, request: &str) -> io::Result<()> {
@@ -102,32 +136,26 @@ fn invalid_data(message: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
-/// The devices available to adb (in the `device` state)
+/// The serials of the available devices
 #[derive(Default)]
-struct Devices {
-    available: HashSet<String>,
+struct Available {
+    serials: HashSet<String>,
 }
 
-impl Devices {
-    /// Replace the device list by a `track-devices` message, return the devices that became
-    /// available, in the order of the message
-    fn update(&mut self, list: &str) -> Vec<String> {
-        let available: Vec<&str> = list
-            .lines()
-            .filter_map(|line| {
-                let mut fields = line.split_whitespace();
-                match (fields.next(), fields.next()) {
-                    (Some(serial), Some("device")) => Some(serial),
-                    _ => None,
-                }
-            })
+impl Available {
+    /// Replace the device list, return the devices that became available, in the order of the list
+    fn update(&mut self, devices: &[Device]) -> Vec<String> {
+        let available: Vec<&str> = devices
+            .iter()
+            .filter(|device| device.is_available())
+            .map(|device| device.serial.as_str())
             .collect();
         let new = available
             .iter()
-            .filter(|serial| !self.available.contains(**serial))
+            .filter(|serial| !self.serials.contains(**serial))
             .map(|serial| serial.to_string())
             .collect();
-        self.available = available.into_iter().map(String::from).collect();
+        self.serials = available.into_iter().map(String::from).collect();
         new
     }
 }
@@ -176,19 +204,37 @@ mod tests {
 
     #[test]
     fn report_devices_once_available() {
-        let mut devices = Devices::default();
+        let mut available = Available::default();
+        let mut update = |list| available.update(&parse_devices(list));
         assert_eq!(
             vec!["0123", "emulator-5554"],
-            devices.update("0123\tdevice\nabcd\tunauthorized\nemulator-5554\tdevice\n")
+            update("0123\tdevice\nabcd\tunauthorized\nemulator-5554\tdevice\n")
         );
         // authorized meanwhile
         assert_eq!(
             vec!["abcd"],
-            devices.update("0123\tdevice\nabcd\tdevice\nemulator-5554\tdevice\n")
+            update("0123\tdevice\nabcd\tdevice\nemulator-5554\tdevice\n")
         );
-        assert!(devices.update("abcd\tdevice\n").is_empty());
+        assert!(update("abcd\tdevice\n").is_empty());
         // plugged back
-        assert_eq!(vec!["0123"], devices.update("0123\tdevice\nabcd\tdevice\n"));
-        assert!(devices.update("").is_empty());
+        assert_eq!(vec!["0123"], update("0123\tdevice\nabcd\tdevice\n"));
+        assert!(update("").is_empty());
+    }
+
+    #[test]
+    fn parse_device_states() {
+        assert_eq!(
+            vec![
+                Device {
+                    serial: "0123".to_owned(),
+                    state: "device".to_owned()
+                },
+                Device {
+                    serial: "abcd".to_owned(),
+                    state: "unauthorized".to_owned()
+                },
+            ],
+            parse_devices("0123\tdevice\nabcd\tunauthorized\n\n")
+        );
     }
 }
