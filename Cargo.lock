@@ -2717,14 +2717,14 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
 name = "ret-adb"
-version = "3.0.1"
+version = "0.1.0"
 dependencies = [
  "tracing",
 ]
 
 [[package]]
 name = "ret-cli"
-version = "3.0.1"
+version = "0.1.0"
 dependencies = [
  "clap",
  "ctrlc",
@@ -2736,7 +2736,7 @@ dependencies = [
 
 [[package]]
 name = "ret-relay"
-version = "3.0.1"
+version = "0.1.0"
 dependencies = [
  "byteorder",
  "rand",
@@ -2746,7 +2746,7 @@ dependencies = [
 
 [[package]]
 name = "ret-ui"
-version = "3.0.1"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "catppuccin",
