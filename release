@@ -25,9 +25,13 @@ do
     cp app/build/outputs/apk/release/ret-release.apk "$DIST/$dir"/ret.apk
 done
 
-cp target/release/ret "$DIST/$TARGET_DIR_RUST_LINUX"/
-strip "$DIST/$TARGET_DIR_RUST_LINUX"/ret  # remove symbols for smaller binary
+for binary in ret ret-ui
+do
+    cp target/release/$binary "$DIST/$TARGET_DIR_RUST_LINUX"/
+    strip "$DIST/$TARGET_DIR_RUST_LINUX"/$binary  # remove symbols for smaller binary
+done
 cp target/x86_64-pc-windows-gnu/release/ret.exe \
+   target/x86_64-pc-windows-gnu/release/ret-ui.exe \
    crates/ret-cli/scripts/ret-run.cmd \
    "$DIST/$TARGET_DIR_RUST_WIN"/
 

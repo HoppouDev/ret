@@ -56,10 +56,12 @@ Download the [latest release][latest] and extract it.
 The Linux archive (`ret-linux64-<version>.zip`) contains:
  - `ret.apk`
  - `ret`
+ - `ret-ui`
 
 The Windows archive (`ret-win64-<version>.zip`) contains:
  - `ret.apk`
  - `ret.exe`
+ - `ret-ui.exe`
  - `ret-run.cmd`
 
 Each release also lists the SHA-256 of both archives in `SHA256SUMS.txt`.
@@ -145,11 +147,9 @@ the relay server, set the port, DNS servers and routes, and start, stop,
 reinstall or reset the tunnel of each connected device. It can also start every
 device automatically as soon as it is connected, and shows the logs.
 
-It is not in the release archives yet. Build it from the sources with
-[Rust](https://www.rust-lang.org/) installed:
-
-    cargo build --release -p ret-ui
-    ./target/release/ret-ui
+It is in the release archives next to `ret`. Start it with `./ret-ui` (on
+Windows, double-click on `ret-ui.exe`), with `ret.apk` in the same directory,
+like for `ret`.
 
 It reads the same [environment variables](#environment-variables) as `ret`.
 

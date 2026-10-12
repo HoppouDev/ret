@@ -22,10 +22,10 @@ jobs:
         include:
           - name: linux
             os: ubuntu-latest
-            binary: ret
+            exe: ""
           - name: windows
             os: windows-latest
-            binary: ret.exe
+            exe: .exe
     defaults:
       run:
         shell: bash
@@ -39,10 +39,13 @@ jobs:
 
       - run: cargo build --release --locked
 
+      # the command-line interface and the window, both at the root of the artifact
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: binary-${{ matrix.name }}
-          path: target/release/${{ matrix.binary }}
+          path: |
+            target/release/ret${{ matrix.exe }}
+            target/release/ret-ui${{ matrix.exe }}
           if-no-files-found: error
 
   apk:
@@ -115,11 +118,14 @@ jobs:
           mkdir -p "dist/$linux" "dist/$windows"
 
           # artifacts do not keep the executable bit
-          cp bin/binary-linux/ret "dist/$linux/"
-          chmod 755 "dist/$linux/ret"
-          strip "dist/$linux/ret"
+          for binary in ret ret-ui; do
+            cp "bin/binary-linux/$binary" "dist/$linux/"
+            chmod 755 "dist/$linux/$binary"
+            strip "dist/$linux/$binary"
+          done
           cp bin/apk/ret-release.apk "dist/$linux/ret.apk"
-          cp bin/binary-windows/ret.exe crates/ret-cli/scripts/ret-run.cmd "dist/$windows/"
+          cp bin/binary-windows/ret.exe bin/binary-windows/ret-ui.exe \
+            crates/ret-cli/scripts/ret-run.cmd "dist/$windows/"
           cp bin/apk/ret-release.apk "dist/$windows/ret.apk"
 
           cd dist
