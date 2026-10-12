@@ -106,7 +106,8 @@ To run the format and lint checks on the whole repository:
 The current version and the next one can be printed with `cog get-version` and
 `cog bump --auto --dry-run`.
 
-On every push, GitHub Actions runs the relay server tests (`cargo test`).
+On every push, GitHub Actions runs the relay server tests (`cargo test`), and
+the unit tests and lint of the Android application (`./gradlew :app:check`).
 
 To release, create the version tag with `cog bump --auto` (or a specific
 `--major`, `--minor` or `--patch`), then push the bump commit and the new tag,
