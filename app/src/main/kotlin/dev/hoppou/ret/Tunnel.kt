@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017 Genymobile
+ * Copyright (C) 2026 HoppouDev
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +15,20 @@
  * limitations under the License.
  */
 
-package dev.hoppou.ret;
+package dev.hoppou.ret
 
-import java.io.IOException;
+import java.io.IOException
 
-public interface Tunnel {
-
-    // blocking
-    void send(byte[] packet, int len) throws IOException;
+interface Tunnel {
 
     // blocking
-    int receive(byte[] packet) throws IOException;
+    @Throws(IOException::class)
+    fun send(packet: ByteArray, len: Int)
 
     // blocking
-    void close();
+    @Throws(IOException::class)
+    fun receive(packet: ByteArray): Int
+
+    // blocking
+    fun close()
 }

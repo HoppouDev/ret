@@ -9,6 +9,10 @@
 
 # Add any project specific keep options here:
 
+# R8 only removes unused code here: keep the original names, so that the stack traces logged by
+# release builds stay readable without a mapping file
+-dontobfuscate
+
 # If your project uses WebView with JS, uncomment the following
 # and specify the fully qualified class name to the JavaScript interface
 # class:

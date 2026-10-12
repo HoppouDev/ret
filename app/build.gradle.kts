@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    checkstyle
 }
 
 base {
@@ -45,7 +44,9 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // drop the unused parts of the Kotlin standard library and resources from the apk
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
         }
@@ -60,23 +61,6 @@ android {
 dependencies {
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
     testImplementation("junit:junit:4.13.2")
-}
-
-checkstyle {
-    toolVersion = "14.3.0"
-}
-
-val checkstyleTask = tasks.register<Checkstyle>("checkstyle") {
-    description = "Check Java style with Checkstyle"
-    group = "verification"
-    configFile = rootProject.file("config/checkstyle/checkstyle.xml")
-    source(android.sourceSets.flatMap { it.java.directories }.map(::file).filter { it.exists() })
-    classpath = files()
-    isIgnoreFailures = true
-}
-
-tasks.named("check") {
-    dependsOn(checkstyleTask)
 }
 
 /**

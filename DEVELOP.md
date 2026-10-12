@@ -186,7 +186,8 @@ communicates with the clients (the private peers), by using a very specific
 
 ## Client
 
-The client is an _Android_ project located in [`app/`](app/).
+The client is an _Android_ project written in _Kotlin_, located in
+[`app/`](app/).
 
 The [`VpnService`] is implemented by [`RetService`].
 
@@ -212,14 +213,14 @@ connection, we have to split writes at packet boundaries: this is the purpose
 of [`IPPacketOutputStream`].
 
 [`VpnService`]: https://developer.android.com/reference/android/net/VpnService.html
-[`RetService`]: app/src/main/java/dev/hoppou/ret/RetService.java
-[`RetActivity`]: app/src/main/java/dev/hoppou/ret/RetActivity.java
-[`VpnConfiguration`]: app/src/main/java/dev/hoppou/ret/VpnConfiguration.java
+[`RetService`]: app/src/main/kotlin/dev/hoppou/ret/RetService.kt
+[`RetActivity`]: app/src/main/kotlin/dev/hoppou/ret/RetActivity.kt
+[`VpnConfiguration`]: app/src/main/kotlin/dev/hoppou/ret/VpnConfiguration.kt
 [`startActivityForResult`]: https://developer.android.com/reference/android/app/Activity.html#startActivityForResult%28android.content.Intent,%20int%29
 [`Activity`]: https://developer.android.com/reference/android/app/Activity.html
-[`RelayTunnel`]: app/src/main/java/dev/hoppou/ret/RelayTunnel.java
-[`PersistentRelayTunnel`]: app/src/main/java/dev/hoppou/ret/PersistentRelayTunnel.java
-[`IPPacketOutputStream`]: app/src/main/java/dev/hoppou/ret/IPPacketOutputStream.java
+[`RelayTunnel`]: app/src/main/kotlin/dev/hoppou/ret/RelayTunnel.kt
+[`PersistentRelayTunnel`]: app/src/main/kotlin/dev/hoppou/ret/PersistentRelayTunnel.kt
+[`IPPacketOutputStream`]: app/src/main/kotlin/dev/hoppou/ret/IPPacketOutputStream.kt
 
 
 ## Relay server
