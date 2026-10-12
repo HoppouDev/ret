@@ -111,6 +111,21 @@ class IPPacketOutputStreamTest {
         assertArrayEquals(rawPacket, bos.toByteArray())
     }
 
+    @Test
+    fun dropDataThatIsNotIPv4() {
+        val bos = ByteArrayOutputStream()
+        val pos = IPPacketOutputStream(bos)
+
+        // an IPv6 header: the buffered data is discarded
+        pos.write(byteArrayOf((6 shl 4).toByte(), 0, 0, 0), 0, 4)
+        assertEquals(0, bos.size())
+
+        // the stream recovers on the next packet
+        val rawPacket = createMockPacket().array()
+        pos.write(rawPacket, 0, rawPacket.size)
+        assertArrayEquals(rawPacket, bos.toByteArray())
+    }
+
     @Test(expected = IOException::class)
     fun rejectMoreThanOnePacketAtOnce() {
         IPPacketOutputStream(ByteArrayOutputStream()).write(ByteArray(0x10001), 0, 0x10001)

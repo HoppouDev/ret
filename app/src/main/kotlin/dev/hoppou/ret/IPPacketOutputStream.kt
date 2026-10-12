@@ -86,7 +86,8 @@ class IPPacketOutputStream(private val target: OutputStream) : OutputStream() {
         if (version != 4) {
             Log.e(TAG, "Unsupported packet received, IP version is:$version")
             Log.d(TAG, "Clearing buffer")
-            buffer.clear()
+            // the buffer is in read mode: consume everything, so that compact() leaves it empty
+            buffer.position(buffer.limit())
             return false
         }
         val packetLength = readPacketLength(buffer)
