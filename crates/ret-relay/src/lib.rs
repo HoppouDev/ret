@@ -35,5 +35,12 @@ use std::io;
 /// The clients reach it through `adb reverse`. All the connections are relayed on the
 /// current thread.
 pub fn relay(port: u16) -> io::Result<()> {
-    Relay::new(port).run()
+    relay_until(port, std::future::pending())
+}
+
+/// Run the relay server like [`relay`], until `shutdown` completes
+///
+/// Then every client and every connection is closed.
+pub fn relay_until(port: u16, shutdown: impl Future<Output = ()>) -> io::Result<()> {
+    Relay::new(port).run(shutdown)
 }

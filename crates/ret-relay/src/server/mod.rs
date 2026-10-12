@@ -35,15 +35,20 @@ impl Relay {
         Self { port }
     }
 
-    pub fn run(&self) -> io::Result<()> {
+    /// Relay until `shutdown` completes, then close every connection
+    pub fn run(&self, shutdown: impl Future<Output = ()>) -> io::Result<()> {
         // all the connections are relayed on the current thread
         let runtime = runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
+        // returning drops the runtime, which cancels the tasks of the clients and their connections
         runtime.block_on(async {
             let listener = tunnel::bind(self.port).await?;
             info!(target: TAG, "Relay server started");
-            tunnel::serve(listener).await;
+            tokio::select! {
+                () = tunnel::serve(listener) => (),
+                () = shutdown => info!(target: TAG, "Relay server stopped"),
+            }
             Ok(())
         })
     }
