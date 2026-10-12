@@ -177,22 +177,24 @@ class RetService : VpnService() {
             val intent = Intent(context, RetService::class.java)
                 .setAction(ACTION_START_VPN)
                 .putExtra(EXTRA_VPN_CONFIGURATION, config)
-            startService(context, intent)
-        }
-
-        fun stop(context: Context) {
-            startService(context, createStopIntent(context))
-        }
-
-        fun createStopIntent(context: Context): Intent =
-            Intent(context, RetService::class.java).setAction(ACTION_CLOSE_VPN)
-
-        private fun startService(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
         }
+
+        /**
+         * Stop the VPN, from an activity in the foreground
+         *
+         * Not a foreground service start: the service only calls startForeground() when it starts
+         * the VPN, so Android would kill the app if the VPN is not running.
+         */
+        fun stop(context: Context) {
+            context.startService(createStopIntent(context))
+        }
+
+        fun createStopIntent(context: Context): Intent =
+            Intent(context, RetService::class.java).setAction(ACTION_CLOSE_VPN)
     }
 }
