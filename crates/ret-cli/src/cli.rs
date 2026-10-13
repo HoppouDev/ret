@@ -50,7 +50,8 @@ pub enum Command {
 
     /// Reverse tether every device, present and future
     ///
-    /// Starts the client on each device adb detects and runs the relay server.
+    /// Starts the client on each device adb detects. The relay server runs while a client runs,
+    /// and stops when none does (the clients are checked every few seconds).
     Autorun(StartArgs),
 
     /// Start the client on the device

@@ -106,6 +106,10 @@ Alternatively, you can enable reverse tethering for all connected devices
 
     ./ret autorun
 
+The relay server then runs only while a client runs: it starts with the first
+client and stops when the last one stops, for example when its device is
+unplugged or the client is stopped from the device.
+
 
 ## Run
 

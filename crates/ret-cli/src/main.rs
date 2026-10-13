@@ -1,3 +1,4 @@
+mod autorun;
 mod cli;
 mod logging;
 
@@ -6,7 +7,6 @@ use ret_adb::client::{self, StartOptions};
 use ret_adb::{Adb, track};
 use std::error::Error;
 use std::process::{self, ExitCode};
-use std::thread;
 use tracing::{error, info};
 
 use crate::cli::{Cli, Command};
@@ -33,12 +33,7 @@ fn execute(command: Command) -> Result<(), Box<dyn Error>> {
             client::install(&adb)?;
         }
         Command::Run { device, start } => run(Adb::from_env(device.serial), start.into())?,
-        Command::Autorun(start) => {
-            let options = StartOptions::from(start);
-            let port = options.port;
-            thread::spawn(move || autostart(options));
-            relay(port)?;
-        }
+        Command::Autorun(start) => autorun::autorun(start.into())?,
         Command::Start { device, start } => {
             client::start(&Adb::from_env(device.serial), &start.into())?
         }
@@ -81,6 +76,6 @@ fn autostart(options: StartOptions) -> ! {
 
 fn relay(port: u16) -> Result<(), Box<dyn Error>> {
     info!("Starting the relay server on port {port}");
-    ret_relay::relay(port).map_err(|err| format!("cannot run the relay server: {err}"))?;
+    ret_relay::relay(port).map_err(|err| format!("cannot run the relay server: {err:#}"))?;
     Ok(())
 }

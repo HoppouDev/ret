@@ -2730,6 +2730,7 @@ dependencies = [
  "ctrlc",
  "ret-adb",
  "ret-relay",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
