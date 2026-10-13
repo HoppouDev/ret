@@ -44,7 +44,7 @@ impl ConnectionId {
         let destination_ip = ipv4_header_data.destination();
         let destination_port = transport_header_data.destination_port();
         let id_string = format!(
-            "{} -> {}",
+            "{} → {}",
             net::to_socket_addr(source_ip, source_port),
             net::to_socket_addr(destination_ip, destination_port)
         );
