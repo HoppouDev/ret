@@ -114,6 +114,45 @@ pub fn tunnel(adb: &Adb, port: u16) -> Result<(), Error> {
     ])
 }
 
+/// Address of the VPN interface of the client, `VPN_ADDRESS` in `RetService.kt`
+const VPN_ADDRESS: &str = "10.0.0.2/32";
+
+/// Name of the VPN session of the client, its `app_name` (`app/src/main/res/values/strings.xml`)
+const VPN_SESSION: &str = "ret";
+
+/// Separates the addresses from the VPN networks in the output of [`RUNNING_QUERY`]
+const VPN_NETWORKS: &str = "--- vpn networks";
+
+/// The IPv4 addresses of the device, then the networks known to Android which use the address of
+/// the client
+const RUNNING_QUERY: &str = "ip -o -4 addr show; echo '--- vpn networks'; \
+                             dumpsys connectivity | grep 10.0.0.2/32";
+
+/// Whether the client has its VPN up
+///
+/// The VPN interface is the reliable sign: the service of the app stays registered after the VPN
+/// is closed. Other VPN apps may use the same address (gnirehtet, many WireGuard setups), so on
+/// Android 12 and later, which name the session of each VPN, the session must be the client's.
+pub fn is_running(adb: &Adb) -> Result<bool, Error> {
+    adb.output(&["shell", RUNNING_QUERY])
+        .map(|output| client_vpn_up(&output))
+}
+
+fn client_vpn_up(output: &str) -> bool {
+    let (addresses, networks) = output.split_once(VPN_NETWORKS).unwrap_or((output, ""));
+    let address_up = addresses.lines().any(|line| {
+        let mut words = line.split_whitespace();
+        words.any(|word| word == "inet") && words.next() == Some(VPN_ADDRESS)
+    });
+    // older versions, or a device without grep, give no session: the address has to do
+    let sessions: Vec<&str> = networks
+        .lines()
+        .filter_map(|line| line.split_once("sessionId="))
+        .filter_map(|(_, rest)| rest.split([',', '}', ' ']).next())
+        .collect();
+    address_up && (sessions.is_empty() || sessions.contains(&VPN_SESSION))
+}
+
 /// Extract the `versionCode` of the installed package from `dumpsys package` output
 fn installed_version_code(dumpsys: &str) -> Option<&str> {
     dumpsys
@@ -159,6 +198,41 @@ mod tests {
     fn no_version_code_when_not_installed() {
         let dumpsys = "Dexopt state:\n  Unable to find package: dev.hoppou.ret\n";
         assert_eq!(None, installed_version_code(dumpsys));
+    }
+
+    /// The VPN network of the client, as `dumpsys connectivity` describes it on Android 14
+    const CLIENT_NETWORK: &str = "  NetworkAgentInfo{network{124}  ni{VPN CONNECTED extra: }  \
+        lp{{InterfaceName: tun0 LinkAddresses: [ 10.0.0.2/32 ] DnsAddresses: [ /8.8.8.8 ]}}  \
+        nc{[ Transports: VPN OwnerUid: 10160 TransportInfo: <VpnTransportInfo{type=1, \
+        sessionId=ret, bypassable=false}>]}}";
+
+    fn query_output(addresses: &str, networks: &str) -> String {
+        format!("{addresses}--- vpn networks\n{networks}")
+    }
+
+    #[test]
+    fn running_when_the_vpn_of_the_client_is_up() {
+        let addresses = "1: lo    inet 127.0.0.1/8 scope host lo\\       valid_lft forever\n\
+                         35: wlan0    inet 10.0.0.112/24 brd 10.0.0.255 scope global wlan0\n\
+                         36: tun0    inet 10.0.0.2/32 scope global tun0\\       valid_lft forever\n";
+        assert!(client_vpn_up(&query_output(addresses, CLIENT_NETWORK)));
+        // before Android 12, VPN networks have no session name
+        assert!(client_vpn_up(&query_output(addresses, "")));
+    }
+
+    #[test]
+    fn not_running_without_the_vpn_address() {
+        // the same address on a /24 network belongs to the Wi-Fi, not to the client
+        let addresses = "1: lo    inet 127.0.0.1/8 scope host lo\n\
+                         35: wlan0    inet 10.0.0.2/24 brd 10.0.0.255 scope global wlan0\n";
+        assert!(!client_vpn_up(&query_output(addresses, "")));
+    }
+
+    #[test]
+    fn not_running_when_another_vpn_has_the_address() {
+        let addresses = "36: tun0    inet 10.0.0.2/32 scope global tun0\n";
+        let gnirehtet = CLIENT_NETWORK.replace("sessionId=ret", "sessionId=Gnirehtet");
+        assert!(!client_vpn_up(&query_output(addresses, &gnirehtet)));
     }
 
     #[test]

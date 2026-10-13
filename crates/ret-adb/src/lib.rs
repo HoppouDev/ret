@@ -2,6 +2,7 @@
 
 mod adb;
 pub mod client;
+pub mod info;
 pub mod track;
 
 pub use adb::{Adb, Error};
