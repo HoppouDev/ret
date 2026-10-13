@@ -2,6 +2,32 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+# [v0.2.0](https://github.com/HoppouDev/ret/compare/561c0030796191c1514b6049a4ffb41bebecec77..v0.2.0) - 2026-10-13
+### Features
+- (**adb**) get the name and kind of devices and whether their client runs - ([de51803](https://github.com/HoppouDev/ret/commit/de51803e82f3cc6687953d27f3ad36ec1069ffb1)) - HoppouDev
+- (**cli**) run the relay of autorun only while a client needs it - ([df3f89d](https://github.com/HoppouDev/ret/commit/df3f89d0de159170712314088f03837a7a0c967d)) - HoppouDev
+- (**relay**) show connections with an arrow in the logs - ([6ad182c](https://github.com/HoppouDev/ret/commit/6ad182c024f28991a9aace0c1534f477eef2d61b)) - HoppouDev
+- (**ui**) add a settings page, device menus, saved settings and logs, and run the relay on demand - ([e83fe55](https://github.com/HoppouDev/ret/commit/e83fe558c63287b1b425a61ec9d7677bd20169f4)) - HoppouDev
+### Bug Fixes
+- (**app**) drop packets shorter than an ipv4 header instead of looping forever - ([2265420](https://github.com/HoppouDev/ret/commit/22654207fb143366d1f3d1c5a911b49a10f029bf)) - HoppouDev
+- (**app**) recover after a packet that is not ipv4 from the relay - ([5883b2b](https://github.com/HoppouDev/ret/commit/5883b2b4daf7e9d212b7ff260895a2605592d056)) - HoppouDev
+- (**app**) do not crash when stopping a client that is not running - ([0b4e4a3](https://github.com/HoppouDev/ret/commit/0b4e4a37d27dac79ccde082a5ef240e17e128f3f)) - HoppouDev
+### Tests
+- (**app**) cover the relay tunnel reconnection and the packet helpers - ([ddcf140](https://github.com/HoppouDev/ret/commit/ddcf14052b5c5449e1e895283edd989e70e0b131)) - HoppouDev
+### Build system
+- (**gradle**) add the spotless plugin - ([9d3a5d6](https://github.com/HoppouDev/ret/commit/9d3a5d67e5b1f6f40fd35f0bcf613234e6a2aadd)) - HoppouDev
+- optimize the release binaries for size - ([d3ee2fb](https://github.com/HoppouDev/ret/commit/d3ee2fb38749e20ded319486b673d57d1f63b412)) - HoppouDev
+- enforce lf line endings and store media files with git lfs - ([0ba6ec5](https://github.com/HoppouDev/ret/commit/0ba6ec5df10c609efafcee1cd973d9e5d7465d2a)) - HoppouDev
+### Continuous Integration
+- run the android unit tests and lint on every push - ([72ad3c0](https://github.com/HoppouDev/ret/commit/72ad3c0e137ba39ed6b46c60a97006e350298086)) - HoppouDev
+### Refactoring
+- (**app**) port the android client to kotlin - ([561c003](https://github.com/HoppouDev/ret/commit/561c0030796191c1514b6049a4ffb41bebecec77)) - HoppouDev
+- (**relay**) report the errors of the relay with their context - ([887eef4](https://github.com/HoppouDev/ret/commit/887eef41414f741f06c2fd5786cbaebb41b266d5)) - HoppouDev
+### Miscellaneous Chores
+- ignore the lock files of affinity - ([3d8feca](https://github.com/HoppouDev/ret/commit/3d8fecabfb4132e7ded1c9b9273959ba991ca2c3)) - HoppouDev
+
+- - -
+
 # [v0.1.0](https://github.com/HoppouDev/ret/compare/326fdeb177cf40f8152292e40ff5e3beb2e33da5..v0.1.0) - 2026-10-12
 ### Features
 - (**adb**) report every device known to adb with its state - ([e443ae6](https://github.com/HoppouDev/ret/commit/e443ae6f282d54cb85d7b50fe15f1da4b8e4c324)) - HoppouDev

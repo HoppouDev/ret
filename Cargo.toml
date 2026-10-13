@@ -4,7 +4,7 @@ members = ["crates/*"]
 
 # The version of every crate, set by `cog bump` to the version of the release tag
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 # the crates are not published, internal dependencies have no version requirement
 publish = false
