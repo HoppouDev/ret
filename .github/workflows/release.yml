@@ -121,7 +121,6 @@ jobs:
           for binary in ret ret-ui; do
             cp "bin/binary-linux/$binary" "dist/$linux/"
             chmod 755 "dist/$linux/$binary"
-            strip "dist/$linux/$binary"
           done
           cp bin/apk/ret-release.apk "dist/$linux/ret.apk"
           cp bin/binary-windows/ret.exe bin/binary-windows/ret-ui.exe \

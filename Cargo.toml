@@ -28,5 +28,14 @@ tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["chrono", "env-filter"] }
 
+# Smaller binaries, see https://github.com/johnthagen/min-sized-rust. Only the measures which keep
+# the behavior: panics still unwind, so that the window survives a crash of the relay or adb.
 [profile.release]
+opt-level = "z"
 lto = true
+codegen-units = 1
+strip = true
+
+# the relay handles every packet of the devices: size costs it 19% on the TCP checksum
+[profile.release.package.ret-relay]
+opt-level = 3
