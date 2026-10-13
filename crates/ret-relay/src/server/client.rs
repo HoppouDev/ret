@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use anyhow::Context;
 use std::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -49,12 +50,12 @@ pub async fn run(id: u32, stream: TcpStream) {
     tokio::select! {
         result = write_loop(id, writer, receiver) => {
             if let Err(err) = result {
-                error!(target: TAG, "Cannot write: [{:?}] {}", err.kind(), err);
+                error!(target: TAG, "{err:#}");
             }
         }
         result = read_loop(reader, Router::new(sender)) => match result {
             Ok(()) => debug!(target: TAG, "EOF reached"),
-            Err(err) => error!(target: TAG, "Cannot read: [{:?}] {}", err.kind(), err),
+            Err(err) => error!(target: TAG, "{err:#}"),
         },
     }
 }
@@ -63,9 +64,12 @@ async fn write_loop(
     id: u32,
     mut writer: OwnedWriteHalf,
     mut receiver: mpsc::Receiver<Vec<u8>>,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     // the client expects its id before any packet
-    writer.write_all(&binary::to_byte_array(id)).await?;
+    writer
+        .write_all(&binary::to_byte_array(id))
+        .await
+        .context("Cannot send its id to the client")?;
     debug!(target: TAG, "Client id #{} sent to client", id);
 
     let mut buf = Vec::with_capacity(MAX_WRITE_LENGTH);
@@ -77,16 +81,22 @@ async fn write_loop(
                 Err(_) => break,
             }
         }
-        writer.write_all(&buf).await?;
+        writer
+            .write_all(&buf)
+            .await
+            .context("Cannot write to the client")?;
         buf.clear();
     }
     Ok(())
 }
 
-async fn read_loop(reader: OwnedReadHalf, mut router: Router) -> io::Result<()> {
+async fn read_loop(reader: OwnedReadHalf, mut router: Router) -> anyhow::Result<()> {
     let mut buffer = Ipv4PacketBuffer::new();
     loop {
-        reader.readable().await?;
+        reader
+            .readable()
+            .await
+            .context("Cannot read from the client")?;
         match buffer.read_from(&mut TryRead(&reader)) {
             Ok(true) => {
                 while let Some(packet) = buffer.as_ipv4_packet() {
@@ -100,7 +110,7 @@ async fn read_loop(reader: OwnedReadHalf, mut router: Router) -> io::Result<()> 
             // EOF
             Ok(false) => return Ok(()),
             Err(err) if err.kind() == io::ErrorKind::WouldBlock => (),
-            Err(err) => return Err(err),
+            Err(err) => return Err(err).context("Cannot read from the client"),
         }
     }
 }

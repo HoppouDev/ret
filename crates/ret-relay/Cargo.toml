@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+anyhow.workspace = true
 byteorder.workspace = true
 rand.workspace = true
 tokio.workspace = true

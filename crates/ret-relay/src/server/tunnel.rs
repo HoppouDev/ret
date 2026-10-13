@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use std::io;
+use anyhow::Context;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -25,8 +25,11 @@ use super::client;
 
 const TAG: &str = "TunnelServer";
 
-pub async fn bind(port: u16) -> io::Result<TcpListener> {
-    TcpListener::bind(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port)).await
+pub async fn bind(port: u16) -> anyhow::Result<TcpListener> {
+    let address = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
+    TcpListener::bind(address)
+        .await
+        .with_context(|| format!("cannot listen on {address}"))
 }
 
 /// Accept clients and relay each of them in its own task

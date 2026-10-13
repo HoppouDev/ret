@@ -2738,6 +2738,7 @@ dependencies = [
 name = "ret-relay"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "byteorder",
  "rand",
  "tokio",

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use std::io;
+use anyhow::Context;
 use tokio::runtime;
 use tracing::info;
 
@@ -36,11 +36,12 @@ impl Relay {
     }
 
     /// Relay until `shutdown` completes, then close every connection
-    pub fn run(&self, shutdown: impl Future<Output = ()>) -> io::Result<()> {
+    pub fn run(&self, shutdown: impl Future<Output = ()>) -> anyhow::Result<()> {
         // all the connections are relayed on the current thread
         let runtime = runtime::Builder::new_current_thread()
             .enable_all()
-            .build()?;
+            .build()
+            .context("cannot create the runtime of the relay server")?;
         // returning drops the runtime, which cancels the tasks of the clients and their connections
         runtime.block_on(async {
             let listener = tunnel::bind(self.port).await?;

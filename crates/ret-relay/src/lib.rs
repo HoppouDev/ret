@@ -28,19 +28,18 @@ mod server;
 mod test_support;
 
 use crate::server::Relay;
-use std::io;
 
 /// Run the relay server on `port` of localhost, until an error occurs
 ///
 /// The clients reach it through `adb reverse`. All the connections are relayed on the
 /// current thread.
-pub fn relay(port: u16) -> io::Result<()> {
+pub fn relay(port: u16) -> anyhow::Result<()> {
     relay_until(port, std::future::pending())
 }
 
 /// Run the relay server like [`relay`], until `shutdown` completes
 ///
 /// Then every client and every connection is closed.
-pub fn relay_until(port: u16, shutdown: impl Future<Output = ()>) -> io::Result<()> {
+pub fn relay_until(port: u16, shutdown: impl Future<Output = ()>) -> anyhow::Result<()> {
     Relay::new(port).run(shutdown)
 }
