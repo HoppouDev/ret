@@ -5,10 +5,12 @@ use iced::Subscription;
 use iced::futures::{SinkExt, Stream};
 use ret_adb::Adb;
 use ret_adb::client::{self, StartOptions};
+use ret_adb::info::{self, DeviceInfo};
 use ret_adb::track::{self, Device};
 use std::fmt;
 use std::thread;
 use tokio::sync::{mpsc, oneshot};
+use tracing::warn;
 
 /// Stops the relay server when dropped or when `stop()` is called
 pub struct RelayHandle {
@@ -38,8 +40,8 @@ pub fn start_relay(port: u16) -> (RelayHandle, impl Future<Output = Result<(), S
                 // a dropped handle stops the server too
                 let _ = stopped.await;
             };
-            let result = ret_relay::relay_until(port, shutdown)
-                .with_context(|| format!("cannot run the relay server on port {port}"));
+            let result =
+                ret_relay::relay_until(port, shutdown).context("cannot run the relay server");
             let _ = done.send(result);
         })
         .expect("cannot spawn the relay thread");
@@ -76,6 +78,32 @@ fn device_lists() -> impl Stream<Item = Vec<Device>> {
             }
         }
     })
+}
+
+/// The name and kind of the device `serial`, `None` if it cannot be asked
+pub async fn device_info(serial: String) -> Option<DeviceInfo> {
+    let adb = Adb::from_env(Some(serial.clone()));
+    match tokio::task::spawn_blocking(move || info::device_info(&adb)).await {
+        Ok(Ok(info)) => Some(info),
+        Ok(Err(err)) => {
+            warn!("Cannot get the name of {serial}: {err}");
+            None
+        }
+        Err(_) => None,
+    }
+}
+
+/// Whether the client of the device `serial` runs, `None` if it cannot be asked
+pub async fn client_running(serial: String) -> Option<bool> {
+    let adb = Adb::from_env(Some(serial.clone()));
+    match tokio::task::spawn_blocking(move || client::is_running(&adb)).await {
+        Ok(Ok(running)) => Some(running),
+        Ok(Err(err)) => {
+            warn!("Cannot check the client of {serial}: {err}");
+            None
+        }
+        Err(_) => None,
+    }
 }
 
 /// What can be done with the client of a device

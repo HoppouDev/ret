@@ -2,12 +2,16 @@
 
 mod devices;
 mod logs;
+mod menu;
+mod settings;
+mod smooth;
+mod tail;
 
-use iced::widget::{Text, button, column, container, row, space, text, text_input};
-use iced::{Alignment, Element, Fill, FillPortion, Font, font};
+use iced::widget::{Text, button, column, container, row, space, text};
+use iced::{Alignment, Element, Fill, FillPortion, Font, font, padding};
 use iced_fonts::lucide;
 
-use crate::app::{Message, Relay, Ret};
+use crate::app::{Message, Page, Relay, Ret};
 use crate::style::{self, Tone};
 
 pub const BOLD: Font = Font {
@@ -15,10 +19,12 @@ pub const BOLD: Font = Font {
     ..Font::DEFAULT
 };
 
-const SIDEBAR_WIDTH: u32 = 300;
-
 pub fn view(ret: &Ret) -> Element<'_, Message> {
-    let mut content = column![header(ret)].spacing(20).padding(24);
+    // the settings scroll up to the bottom of the window, their padding is inside the scrollable
+    let bottom = if ret.page == Page::Settings { 0 } else { 24 };
+    let mut content = column![header(ret)]
+        .spacing(20)
+        .padding(padding::all(24).bottom(bottom));
     if let Relay::Stopped { error: Some(error) } = &ret.relay {
         content = content.push(
             container(
@@ -38,9 +44,13 @@ pub fn view(ret: &Ret) -> Element<'_, Message> {
             .style(style::banner(Tone::Danger)),
         );
     }
-    let body = row![settings(ret), devices::view(ret)].spacing(20);
-    content = content.push(body.height(FillPortion(3)));
-    content = content.push(logs::view(ret));
+    match ret.page {
+        Page::Home => {
+            content = content.push(container(devices::view(ret)).height(FillPortion(3)));
+            content = content.push(logs::view(ret));
+        }
+        Page::Settings => content = content.push(settings::view(ret)),
+    }
     container(content)
         .width(Fill)
         .height(Fill)
@@ -89,9 +99,11 @@ fn header(ret: &Ret) -> Element<'_, Message> {
             "Relay stopped".to_owned(),
             Tone::Danger,
         ),
-        Relay::Stopped { error: None } => {
-            (lucide::zap_off(), "Relay stopped".to_owned(), Tone::Neutral)
-        }
+        Relay::Stopped { error: None } => (
+            lucide::zap_off(),
+            "Relay idle until a client starts".to_owned(),
+            Tone::Neutral,
+        ),
     };
     let status = container(
         row![icon.size(14), text(status).size(13)]
@@ -101,101 +113,22 @@ fn header(ret: &Ret) -> Element<'_, Message> {
     .padding([7, 14])
     .style(style::chip(tone));
 
-    let toggle = match &ret.relay {
-        Relay::Running { .. } => button(labeled(lucide::square(), "Stop relay", 14))
-            .style(style::danger)
-            .on_press(Message::ToggleRelay),
-        Relay::Stopping => button(labeled(lucide::square(), "Stop relay", 14)).style(style::danger),
-        Relay::Stopped { .. } => button(labeled(lucide::play(), "Start relay", 14))
-            .style(style::primary)
-            .on_press_maybe(ret.port().map(|_| Message::ToggleRelay)),
-    };
+    let on_settings = ret.page == Page::Settings;
+    let settings = button(container(lucide::settings().size(18)).center(Fill))
+        .padding(0)
+        .width(40)
+        .height(40)
+        .style(style::link(on_settings))
+        .on_press(Message::ShowPage(if on_settings {
+            Page::Home
+        } else {
+            Page::Settings
+        }));
 
-    row![
-        logo,
-        title,
-        space().width(Fill),
-        status,
-        toggle.padding([10, 20])
-    ]
-    .spacing(14)
-    .align_y(Alignment::Center)
-    .into()
-}
-
-fn settings(ret: &Ret) -> Element<'_, Message> {
-    let editable = matches!(ret.relay, Relay::Stopped { .. });
-    let port_caption = if !editable {
-        text("Stop the relay to change its port").style(style::muted)
-    } else if ret.port().is_some() {
-        text("Port of the relay server on this computer").style(style::muted)
-    } else {
-        text("Enter a port between 1 and 65535").style(style::tone(Tone::Danger))
-    };
-
-    let connection = card(
-        heading(lucide::sliders_horizontal(), "Connection"),
-        column![
-            field(
-                lucide::plug(),
-                "Port",
-                input("31416", &ret.port)
-                    .font(Font::MONOSPACE)
-                    .on_input_maybe(
-                        editable.then_some(Message::PortChanged as fn(String) -> Message)
-                    ),
-                port_caption.size(12),
-            ),
-            field(
-                lucide::globe(),
-                "DNS servers",
-                input("8.8.8.8", &ret.dns_servers).on_input(Message::DnsServersChanged),
-                text("Comma-separated, used by the devices")
-                    .size(12)
-                    .style(style::muted),
-            ),
-            field(
-                lucide::route(),
-                "Routes",
-                input("0.0.0.0/0", &ret.routes).on_input(Message::RoutesChanged),
-                text("Comma-separated, the traffic to reverse tether")
-                    .size(12)
-                    .style(style::muted),
-            ),
-        ]
-        .spacing(16),
-    );
-
-    container(connection.height(Fill))
-        .width(SIDEBAR_WIDTH)
+    row![logo, title, space().width(Fill), status, settings]
+        .spacing(14)
+        .align_y(Alignment::Center)
         .into()
-}
-
-fn input<'a>(placeholder: &'a str, value: &'a str) -> text_input::TextInput<'a, Message> {
-    text_input(placeholder, value)
-        .padding([9, 12])
-        .size(14)
-        .style(style::input)
-}
-
-fn field<'a>(
-    icon: Text<'a>,
-    label: &'a str,
-    input: impl Into<Element<'a, Message>>,
-    caption: impl Into<Element<'a, Message>>,
-) -> Element<'a, Message> {
-    column![
-        row![
-            icon.size(13).style(style::muted),
-            text(label).size(13).font(BOLD)
-        ]
-        .spacing(6)
-        .align_y(Alignment::Center),
-        input.into(),
-        caption.into()
-    ]
-    .spacing(6)
-    .into()
 }
 
 /// A titled surface grouping related content

@@ -1,15 +1,22 @@
 //! The devices known to adb and the actions on their client
 
-use iced::widget::{
-    Text, button, column, container, row, scrollable, space, text, toggler, tooltip,
-};
+use iced::widget::{Text, button, column, container, row, scrollable, space, text, tooltip};
 use iced::{Alignment, Element, Fill, padding};
 use iced_fonts::lucide;
 
+use super::menu::menu;
+use super::smooth::smooth;
 use super::{BOLD, card, dots, heading, labeled};
 use crate::app::{DeviceRow, Message, Ret};
 use crate::backend::Action;
 use crate::style::{self, Tone};
+
+/// Width of the start and stop button, the same for both labels
+const TOGGLE_WIDTH: f32 = 116.0;
+/// Height of the start and stop button, and size of the menu button next to it
+const BUTTON_SIZE: f32 = 44.0;
+/// Width of the menu of a device
+const MENU_WIDTH: f32 = 280.0;
 
 pub fn view(ret: &Ret) -> Element<'_, Message> {
     let available = ret
@@ -24,38 +31,42 @@ pub fn view(ret: &Ret) -> Element<'_, Message> {
         } else {
             Tone::Neutral
         }));
-    let autostart = tooltip(
-        row![
-            lucide::zap().size(14).style(style::muted),
-            toggler(ret.autostart)
-                .label("Auto-start")
-                .text_size(13)
-                .on_toggle(Message::AutostartToggled),
-        ]
-        .spacing(8)
-        .align_y(Alignment::Center),
-        hint("Start the client on every device as soon as adb sees it"),
-        tooltip::Position::Bottom,
-    );
-    let title = row![
+    let mut title = row![
         heading(lucide::smartphone(), "Devices"),
         count,
-        space().width(Fill),
-        autostart
+        space().width(Fill)
     ]
     .spacing(10)
     .align_y(Alignment::Center);
+    if ret.autostart {
+        // changed in the settings, shown here because it decides what plugging a device does
+        title = title.push(tooltip(
+            container(
+                row![lucide::zap().size(12), text("Auto-start").size(12)]
+                    .spacing(6)
+                    .align_y(Alignment::Center),
+            )
+            .padding([3, 10])
+            .style(style::chip(Tone::Primary)),
+            hint("Every device starts its client as soon as adb sees it"),
+            tooltip::Position::Bottom,
+        ));
+    }
 
     let body: Element<'_, Message> = if ret.devices.is_empty() {
         empty()
     } else {
-        scrollable(
-            column(ret.devices.iter().map(|row| device(row, ret.tick)))
+        smooth(
+            scrollable(
+                column(ret.devices.iter().map(|row| {
+                    let menu_open = ret.menu.as_ref() == Some(&row.device.serial);
+                    device(row, menu_open, ret.tick)
+                }))
                 .spacing(10)
                 .padding(padding::right(12)),
+            )
+            .height(Fill),
         )
-        .height(Fill)
-        .into()
     };
     card(title, body).height(Fill).into()
 }
@@ -80,11 +91,17 @@ fn empty<'a>() -> Element<'a, Message> {
     .into()
 }
 
-fn device(row: &DeviceRow, tick: usize) -> Element<'_, Message> {
+fn device(row: &DeviceRow, menu_open: bool, tick: usize) -> Element<'_, Message> {
     let available = row.device.is_available();
     let (state_icon, state, tone) = describe_state(&row.device.state);
 
-    let avatar = container(lucide::smartphone().size(20))
+    let headset = row.info.as_ref().is_some_and(|info| info.headset);
+    let kind_icon = if headset {
+        lucide::rectangle_goggles()
+    } else {
+        lucide::smartphone()
+    };
+    let avatar = container(kind_icon.size(20))
         .center(42)
         .style(style::tile(if available { Tone::Primary } else { tone }));
 
@@ -100,6 +117,11 @@ fn device(row: &DeviceRow, tick: usize) -> Element<'_, Message> {
             lucide::circle_alert(),
             state_hint(&row.device.state).to_owned(),
             None,
+        ),
+        (None, None) if row.running == Some(true) => (
+            lucide::circle_play(),
+            "Client running".to_owned(),
+            Some(Tone::Success),
         ),
         (None, None) => (lucide::circle_dashed(), "Ready to start".to_owned(), None),
     };
@@ -125,54 +147,87 @@ fn device(row: &DeviceRow, tick: usize) -> Element<'_, Message> {
     )
     .padding([2, 8])
     .style(style::chip(tone));
-    let info = column![
-        row![text(&row.device.serial).size(15).font(BOLD), chip]
-            .spacing(8)
-            .align_y(Alignment::Center),
-        status,
-    ]
-    .spacing(5)
-    .width(Fill);
+    let name = row.info.as_ref().and_then(|info| info.name.as_deref());
+    let mut info = column![
+        row![
+            text(name.unwrap_or(&row.device.serial)).size(15).font(BOLD),
+            chip
+        ]
+        .spacing(8)
+        .align_y(Alignment::Center),
+    ];
+    // the serial stays visible under the name, to tell identical devices apart
+    if name.is_some() {
+        info = info.push(text(&row.device.serial).size(12).style(style::muted));
+    }
+    let info = info.push(status).spacing(5).width(Fill);
 
     let enabled = available && row.busy.is_none();
-    let action = |icon, label, action, style: fn(&_, _) -> _, help| {
-        let button = button(labeled(icon, label, 13))
-            .padding([7, 12])
-            .style(style)
-            .on_press_maybe(enabled.then(|| Message::Run(row.device.serial.clone(), action)));
-        tooltip(button, hint(help), tooltip::Position::Top)
-    };
-    let actions = row![
-        action(
-            lucide::play(),
-            "Start",
-            Action::Start,
-            style::primary,
-            "Install the client if needed, then start it"
-        ),
-        action(
-            lucide::square(),
-            "Stop",
+    let run = |action| enabled.then(|| Message::Run(row.device.serial.clone(), action));
+    let (toggle, toggle_action) = if row.running == Some(true) {
+        (
+            button(centered(labeled(lucide::square(), "Stop", 16))).style(style::danger),
             Action::Stop,
-            style::ghost,
-            "Stop the client"
-        ),
-        action(
-            lucide::refresh_cw(),
-            "Tunnel",
-            Action::Tunnel,
-            style::ghost,
-            "Reset the adb reverse tunnel, after the device was plugged back"
-        ),
-        action(
-            lucide::download(),
-            "Reinstall",
-            Action::Reinstall,
-            style::ghost,
-            "Uninstall then install the client"
-        ),
-    ]
-    .spacing(6);
+        )
+    } else {
+        (
+            button(centered(labeled(lucide::play(), "Start", 16))).style(style::primary),
+            Action::Start,
+        )
+    };
+    let toggle = toggle
+        .padding(0)
+        .width(TOGGLE_WIDTH)
+        .height(BUTTON_SIZE)
+        .on_press_maybe(run(toggle_action));
+
+    let more = button(centered(lucide::ellipsis().size(18).into()))
+        .padding(0)
+        .width(BUTTON_SIZE)
+        .height(BUTTON_SIZE)
+        .style(style::ghost)
+        .on_press(Message::ToggleMenu(row.device.serial.clone()));
+    let item = |icon: Text<'static>, label, help, action| {
+        button(
+            row![
+                icon.size(16),
+                column![
+                    text(label).size(13).font(BOLD),
+                    text(help).size(12).style(style::muted)
+                ]
+                .spacing(2),
+            ]
+            .spacing(12)
+            .align_y(Alignment::Center),
+        )
+        .padding([8, 10])
+        .width(Fill)
+        .style(style::menu_item)
+        .on_press_maybe(run(action))
+    };
+    let menu_items = container(
+        column![
+            item(
+                lucide::refresh_cw(),
+                "Reset the tunnel",
+                "After the device was plugged back",
+                Action::Tunnel,
+            ),
+            item(
+                lucide::download(),
+                "Reinstall the client",
+                "Uninstall it, then install it again",
+                Action::Reinstall,
+            ),
+        ]
+        .spacing(2),
+    )
+    .padding(6)
+    .width(Fill)
+    .style(style::card);
+    let more = menu(more, menu_items, menu_open, MENU_WIDTH, Message::CloseMenu);
+
+    let actions = row![toggle, more].spacing(8).align_y(Alignment::Center);
 
     container(
         row![avatar, info, actions]
@@ -183,6 +238,11 @@ fn device(row: &DeviceRow, tick: usize) -> Element<'_, Message> {
     .width(Fill)
     .style(style::inset)
     .into()
+}
+
+/// `content` in the middle of a fixed-size button
+fn centered(content: Element<'_, Message>) -> Element<'_, Message> {
+    container(content).center(Fill).into()
 }
 
 fn hint(message: &str) -> Element<'_, Message> {

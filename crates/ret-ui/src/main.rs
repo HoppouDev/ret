@@ -5,6 +5,7 @@
 
 mod app;
 mod backend;
+mod config;
 mod logs;
 mod style;
 mod view;
@@ -13,7 +14,8 @@ use app::Ret;
 use iced::{Size, window};
 
 fn main() -> iced::Result {
-    logs::init();
+    // writes the last lines to the log file once the window closes
+    let _log_file = logs::init();
     iced::application(Ret::boot, Ret::update, view::view)
         .title("ret")
         .theme(Ret::theme)

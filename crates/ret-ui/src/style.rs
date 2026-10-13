@@ -55,6 +55,7 @@ fn color(color: catppuccin::Color) -> Color {
 pub enum Tone {
     Neutral,
     Primary,
+    Info,
     Success,
     Warning,
     Danger,
@@ -66,6 +67,7 @@ impl Tone {
         color(match self {
             Tone::Neutral => colors.overlay1,
             Tone::Primary => colors.mauve,
+            Tone::Info => colors.blue,
             Tone::Success => colors.green,
             Tone::Warning => colors.yellow,
             Tone::Danger => colors.red,
@@ -229,6 +231,27 @@ pub fn ghost(theme: &Theme, status: button::Status) -> button::Style {
             width: 1.0,
             radius: RADIUS.into(),
         },
+        ..button::Style::default()
+    }
+}
+
+/// Borderless button filling a row of a menu, highlighted under the cursor
+pub fn menu_item(theme: &Theme, status: button::Status) -> button::Style {
+    let colors = colors(theme);
+    let background = match status {
+        button::Status::Hovered => Some(color(colors.surface0).into()),
+        button::Status::Pressed => Some(color(colors.surface1).into()),
+        button::Status::Active | button::Status::Disabled => None,
+    };
+    let alpha = if status == button::Status::Disabled {
+        0.4
+    } else {
+        1.0
+    };
+    button::Style {
+        background,
+        text_color: color(colors.text).scale_alpha(alpha),
+        border: Border::default().rounded(RADIUS - 2.0),
         ..button::Style::default()
     }
 }

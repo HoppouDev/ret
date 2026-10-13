@@ -146,16 +146,55 @@ details of one command (for example `./ret help start`).
 
 ## Graphical interface
 
-`ret-ui` is a window that does the same as the commands above: start and stop
-the relay server, set the port, DNS servers and routes, and start, stop,
-reinstall or reset the tunnel of each connected device. It can also start every
-device automatically as soon as it is connected, and shows the logs.
+`ret-ui` is a window that does the same as the commands above. Its main page
+lists the connected devices and shows the logs. Each device has a button to
+start or stop its client, and a menu (the `…` button) to reset its tunnel or
+reinstall the client. Headsets are shown with a headset icon, phones with a
+phone icon.
+
+The relay server runs by itself: it starts as soon as a client is started or
+found running, and stops once no client runs anymore. The header shows its
+state.
+
+The gear button opens the settings, grouped by category:
+ - Connection: the port of the relay server, the DNS servers and the routes
+ - Devices: auto-start, which starts the client on every device as soon as it
+   is connected (on by default)
+ - Appearance: the theme, light, dark or the same as the system
 
 It is in the release archives next to `ret`. Start it with `./ret-ui` (on
 Windows, double-click on `ret-ui.exe`), with `ret.apk` in the same directory,
 like for `ret`.
 
 It reads the same [environment variables](#environment-variables) as `ret`.
+
+The window remembers its settings in `config.toml`, in a `ret` directory of the
+user configuration directory:
+ - Linux: `~/.config/ret/config.toml` (or `$XDG_CONFIG_HOME/ret/config.toml`)
+ - Windows: `%APPDATA%\ret\config.toml`
+ - macOS: `~/Library/Application Support/ret/config.toml`
+
+The window creates it with the default settings when it starts, and saves it as
+soon as a setting changes. You can also edit it by hand, every key is optional:
+
+```toml
+version = 1
+port = 31416
+dns_servers = ["1.1.1.1", "9.9.9.9"]
+routes = ["10.0.0.0/8"]
+autostart = true
+theme = "system"  # or "light", "dark"
+```
+
+`version` is the layout of the file, which ret writes and upgrades itself. If
+the file cannot be read, or was written by a newer version of ret, the window
+starts with the default settings, logs the error and leaves the file untouched.
+
+The window also saves its logs, one file per day, keeping the last 7, in a
+`ret/logs` directory of the user data directory:
+ - Linux: `~/.local/share/ret/logs` (or `$XDG_DATA_HOME/ret/logs`)
+ - Windows: `%APPDATA%\ret\logs`
+ - macOS: `~/Library/Application Support/ret/logs`
 
 
 ## Run manually
