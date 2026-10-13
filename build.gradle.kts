@@ -2,6 +2,7 @@
 
 plugins {
     id("com.android.application") version "9.4.1" apply false
+    id("com.diffplug.spotless") version "8.10.4"
 }
 
 // tasks.register<Delete>("clean") {
