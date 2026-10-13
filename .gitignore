@@ -5,3 +5,5 @@ target/
 *.iml
 /local.properties
 .kotlin/
+# lock files of Affinity, next to the documents it has open
+*~lock~*
