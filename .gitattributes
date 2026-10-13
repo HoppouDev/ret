@@ -1,0 +1,45 @@
+# Text files are stored and checked out with LF line endings, on every platform
+* text=auto eol=lf
+
+# cmd.exe misreads labels (`goto`, `call :label`) in files with LF endings
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files that are not media, kept in Git itself
+*.jar binary
+*.apk binary
+*.keystore binary
+*.jks binary
+
+# Media files, stored with Git LFS
+[attr]lfs-file filter=lfs diff=lfs merge=lfs -text
+
+# images
+*.png lfs-file
+*.jpg lfs-file
+*.jpeg lfs-file
+*.gif lfs-file
+*.webp lfs-file
+*.avif lfs-file
+*.bmp lfs-file
+*.tif lfs-file
+*.tiff lfs-file
+*.ico lfs-file
+*.psd lfs-file
+# Affinity documents
+*.af lfs-file
+
+# video
+*.mp4 lfs-file
+*.mov lfs-file
+*.webm lfs-file
+*.mkv lfs-file
+*.avi lfs-file
+
+# audio
+*.mp3 lfs-file
+*.wav lfs-file
+*.ogg lfs-file
+*.flac lfs-file
+*.m4a lfs-file
+*.aac lfs-file
