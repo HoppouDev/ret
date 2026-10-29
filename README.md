@@ -61,9 +61,9 @@ The Linux tarball (`ret-x86_64-<version>.tar.gz`) contains:
 On Windows, run the installer (`ret-setup-<version>.exe`), which puts `ret`
 and `ret-ui` on the user `Path` and installs the same `ret.apk`.
 
-Every release also publishes packages for Debian, Fedora, openSUSE, RHEL and
-Alpine, an AppImage which runs on any other distribution, and the Android
-application (`ret-<version>.apk`) on its own.
+Every release also publishes packages for Debian, Fedora, openSUSE, RHEL,
+Arch and Alpine, an AppImage which runs on any other distribution, and the
+Android application (`ret-<version>.apk`) on its own.
 
 ### Coming from Gnirehtet
 

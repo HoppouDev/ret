@@ -145,6 +145,8 @@ The release workflow builds every Linux package of the release:
    distributions which ret does not package for
  - the Alpine package, from `packaging/linux/alpine/APKBUILD`, built with
    `abuild -r` in a container against the musl of the image
+ - the Arch Linux package, from `packaging/linux/arch/PKGBUILD`, built with
+   `makepkg` in a container against the pacman of the image
 
 To build the deb and the rpm locally, put the `ret.apk` of the release at
 `target/release/ret.apk`, then run `cargo deb -p ret-cli --no-build` and
