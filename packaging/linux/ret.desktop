@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Ret
+GenericName=Reverse tethering
+Comment=Reverse tethering over adb
+Exec=ret-ui
+Icon=ret
+Terminal=false
+Categories=Network;
+Keywords=android;usb;reverse;tethering;internet;
+StartupWMClass=ret-ui

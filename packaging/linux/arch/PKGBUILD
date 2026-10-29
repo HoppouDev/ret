@@ -1,0 +1,60 @@
+# Maintainer: HoppouDev <me@hoppou.dev>
+pkgname=ret
+pkgver=0.2.0
+pkgrel=1
+pkgdesc='Reverse tethering for Android over adb'
+arch=(x86_64)
+url='https://github.com/HoppouDev/ret'
+license=(MIT)
+depends=(
+  gcc-libs
+  glibc
+  libglvnd
+  libxkbcommon
+  hicolor-icon-theme
+  wayland
+)
+makedepends=(cargo)
+optdepends=(
+  'android-tools: adb, which starts the adb server when none runs'
+  'vulkan-icd-loader: the fast rendering of ret-ui'
+)
+source=(
+  "$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz"
+  "ret-linux64-$pkgver.zip::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-linux64-v$pkgver.zip"
+)
+sha256sums=('89afc2e66f065c7dbb9042b78ee4a13a953e53fdeb9134dadf1855a2a2fc7eb6'
+            '1ddf1a62fda0a21c848f48df0fce119fd0d7074186f3b32bbc42866abfbeb7bc')
+
+prepare() {
+  # the cache of cargo lives inside the build directory, not in the home of the user
+  export CARGO_HOME="$srcdir/cargo-home"
+  cd "$pkgname-$pkgver"
+  cargo fetch --locked
+}
+
+build() {
+  export CARGO_HOME="$srcdir/cargo-home"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  # keep the paths of the build machine out of the binaries
+  export RUSTFLAGS="--remap-path-prefix=$srcdir=/"
+  cd "$pkgname-$pkgver"
+  cargo build --release --locked
+}
+
+check() {
+  export CARGO_HOME="$srcdir/cargo-home"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cd "$pkgname-$pkgver"
+  cargo test --locked
+}
+
+package() {
+  install -Dm755 "$srcdir/target/release/ret" "$pkgdir/usr/bin/ret"
+  install -Dm755 "$srcdir/target/release/ret-ui" "$pkgdir/usr/bin/ret-ui"
+  install -Dm644 "$srcdir/ret-linux64/ret.apk" "$pkgdir/usr/share/ret/ret.apk"
+  install -Dm644 "$pkgname-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/ret/LICENSE"
+  install -Dm644 "$startdir/../ret.desktop" "$pkgdir/usr/share/applications/ret.desktop"
+  install -Dm644 "$startdir/../../../assets/ret.png" \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/ret.png"
+}
