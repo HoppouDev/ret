@@ -6,6 +6,7 @@ pkgdesc='Reverse tethering for Android over adb'
 arch=(x86_64)
 url='https://github.com/HoppouDev/ret'
 license=(MIT)
+options="!debug"
 depends=(
   gcc-libs
   glibc

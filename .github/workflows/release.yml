@@ -249,4 +249,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --notes-file notes.md \
             dist/ret-x86_64-*.tar.gz dist/ret-v*.apk dist/*.deb dist/*.rpm \
-            dist/ret-0.*.apk dist/*.AppImage dist/ret-setup-*.exe dist/*.pkg.tar.zst
+            dist/ret-0.*.apk dist/*.AppImage dist/ret-setup-*.exe dist/ret-0.*-x86_64.pkg.tar.zst
