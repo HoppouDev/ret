@@ -227,7 +227,7 @@ jobs:
             cp packaging/linux/arch/PKGBUILD /home/builder/packaging/linux/arch/
             cp packaging/linux/ret.desktop /home/builder/packaging/linux/
             cp assets/ret.png /home/builder/assets/
-            cp dist/ret-v'"$version"'.apk /home/builder/srcdest/ret-v'"$version"'.apk
+            cp dist/ret-v'"$version"'.apk /home/builder/srcdest/ret.apk
             chown -R builder:builder /home/builder
             su builder -c "export SRCDEST=/home/builder/srcdest && cd /home/builder/packaging/linux/arch && updpkgsums && makepkg -f"
             cp /home/builder/packaging/linux/arch/ret-*.pkg.tar.zst /work/dist/
@@ -243,6 +243,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # a deleted tag leaves the release of the previous run as a draft, whose
+          # assets are unreachable
+          gh release delete "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --yes || true
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --notes-file notes.md \
             dist/ret-x86_64-*.tar.gz dist/ret-v*.apk dist/*.deb dist/*.rpm \
