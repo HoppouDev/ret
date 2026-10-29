@@ -210,7 +210,9 @@ jobs:
             cp packaging/linux/alpine/APKBUILD /home/builder/test/
             cp dist/ret-v'"$version"'.apk /var/cache/distfiles/ret.apk
             chown -R builder:builder /home/builder /var/cache/distfiles
-            su builder -c "cd /home/builder/test && abuild-keygen -a -n && abuild checksum && abuild -r"
+            su builder -c "cd /home/builder/test && abuild-keygen -a -n && abuild checksum"
+            cp /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
+            su builder -c "cd /home/builder/test && abuild -r"
             cp /home/builder/packages/builder/x86_64/ret-*.apk /work/dist/
           '
 
