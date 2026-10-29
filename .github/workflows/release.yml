@@ -200,7 +200,7 @@ jobs:
           '
 
           # the Alpine package, built in a container against the musl of the image
-          sed -i "s/^pkgver=.*/pkgver=$version/" packaging/linux/alpine/APKBUILD
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/linux/alpine/APKBUILD
           docker run --rm -v "$PWD":/work -w /work alpine:latest sh -ec '
             apk add alpine-sdk rust cargo unzip sudo >/dev/null
             adduser -D builder
@@ -219,7 +219,7 @@ jobs:
           # the Arch Linux package, built in a container against the pacman of the image
           docker run --rm \
             -e VERSION="$version" -v "$PWD":/work -w /work archlinux:base-devel bash -ec '
-            sed -i "s/^pkgver=.*/pkgver=$version/" packaging/linux/arch/PKGBUILD
+            sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/linux/arch/PKGBUILD
             pacman -Sy archlinux-keyring --noconfirm
             pacman -Syu --needed --noconfirm rust pacman-contrib hicolor-icon-theme libxkbcommon libxkbcommon-x11 wayland libglvnd
             useradd -m builder
