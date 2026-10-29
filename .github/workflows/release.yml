@@ -200,7 +200,7 @@ jobs:
           '
 
           # the Alpine package, built in a container against the musl of the image
-          sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/linux/alpine/APKBUILD
+          sed -i "s/^pkgver=.*/pkgver=$version/" packaging/linux/alpine/APKBUILD
           docker run --rm -e VERSION="$version" -v "$PWD":/work -w /work alpine:latest sh -ec '
             apk add alpine-sdk rust cargo unzip sudo >/dev/null
             adduser -D builder
