@@ -43,7 +43,7 @@ _ret_ directory:
 Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
 [adb_client]: https://github.com/cocool97/adb_client
-[adb server]: https://developer.android.com/tools/adb
+[adb]: https://developer.android.com/studio/command-line/adb.html
 [enable-adb]: https://developer.android.com/studio/command-line/adb.html#Enabling
 [platform-tools]: https://developer.android.com/studio/releases/platform-tools.html
 [platform-tools-windows]: https://dl.google.com/android/repository/platform-tools-latest-windows.zip

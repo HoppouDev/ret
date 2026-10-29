@@ -6,10 +6,11 @@
 use std::collections::HashSet;
 use std::io::{self, BufReader, Read, Write};
 use std::net::{Ipv4Addr, TcpStream};
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::{error, info};
+
+use crate::adb::start_server;
 
 const SERVER_PORT: u16 = 5037;
 
@@ -67,19 +68,6 @@ pub fn watch_device_lists(mut on_list: impl FnMut(Vec<Device>)) -> ! {
                 thread::sleep(RETRY_DELAY_SERVER_DOWN);
             }
         }
-    }
-}
-
-/// Start the adb server, with the program given in `ADB` or `adb` from `PATH`
-fn start_server() -> io::Result<()> {
-    let program = std::env::var_os("ADB").unwrap_or_else(|| "adb".into());
-    let status = Command::new(program).arg("start-server").status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::other(format!(
-            "`adb start-server` failed ({status})"
-        )))
     }
 }
 

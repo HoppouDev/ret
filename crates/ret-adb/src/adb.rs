@@ -1,14 +1,16 @@
 //! Device commands, sent to the adb server through the `adb_client` library
 //!
 //! The `adb` program is not involved: the commands run directly against the adb server on
-//! `127.0.0.1:5037`, which forwards them to the device. Only starting the server itself (see
-//! `track`) still runs the `adb` program.
+//! `127.0.0.1:5037`, which forwards them to the device. Only starting that server still runs
+//! the `adb` program (see [`start_server`]), which happens when a command cannot reach it and
+//! while tracking the devices.
 
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::Path;
+use std::process::Command;
 use std::sync::mpsc;
 
 use adb_client::server_device::ADBServerDevice;
@@ -57,11 +59,12 @@ pub struct Adb {
     serial: Option<String>,
 }
 
-/// The line closing the output of device commands, telling their exit status
+/// The output suffix telling the exit status of a device command
 ///
 /// `adb_client` cannot report the status of a shell command: it drops the packet of the shell
-/// protocol when the stream closes. The commands sent by `Adb::shell` print their status
-/// instead, as the last line of their output.
+/// protocol when the stream closes. The commands sent by `Adb::shell` append the status of the
+/// command after `EXIT_MARKER` instead. `echo` prints no newline of its own, so the suffix
+/// sticks to the last line of the output when the command does not end with one.
 const EXIT_MARKER: &str = "__ret_exit=";
 
 impl Adb {
@@ -90,25 +93,21 @@ impl Adb {
     /// Run a command in the shell of the device, checking its exit status
     ///
     /// `adb_client` drops the exit status of the shell protocol, so the command reports it
-    /// itself: `echo` closes the output with `EXIT_MARKER`. The status line is stripped from
-    /// the output, which is returned, and when `terminal` is set the output goes to the
+    /// itself: `echo` closes the output with `EXIT_MARKER` as a suffix. The status is stripped
+    /// from the output, which is returned, and when `terminal` is set the output goes to the
     /// terminal as the `adb` program did, with the errors of the device on the error stream.
     fn shell(&self, command: &str, terminal: bool) -> Result<String, Error> {
         debug!("Run on the device `{command}`");
+        let marked = format!("{command}; echo {EXIT_MARKER}$?");
         let mut stdout = Vec::new();
         let stderr: &mut dyn io::Write = if terminal {
             &mut io::stderr()
         } else {
             &mut io::sink()
         };
-        let mut device = self.device();
-        device
-            .shell_command(
-                &format!("{command}; echo {EXIT_MARKER}$?"),
-                Some(&mut stdout),
-                Some(stderr),
-            )
-            .map_err(Error::Client)?;
+        self.with_device(|device| {
+            device.shell_command(&marked, Some(&mut stdout), Some(&mut *stderr))
+        })?;
         let stdout = String::from_utf8_lossy(&stdout).into_owned();
         let (body, status) = stdout
             .rsplit_once(EXIT_MARKER)
@@ -139,17 +138,33 @@ impl Adb {
     /// `adb install -r` does.
     pub fn install(&self, apk: &OsStr) -> Result<(), Error> {
         let path = Path::new(apk);
-        let mut file = File::open(path)?;
-        let size = file.metadata()?.len();
+        let mut buffer = Vec::new();
+        File::open(path)?.read_to_end(&mut buffer)?;
+        let size = buffer.len();
         let command = format!("cmd package install -r -S {size}");
         debug!("Install `{}` ({size} bytes)", path.display());
 
+        let (device, session, receiver) = self.install_stream(&command, &mut buffer);
+        // the stream is only unreachable when the adb server does not run: start it, then try
+        // once more
+        let retry = match &session {
+            Err(RustADBError::IOError(err)) => err.kind() == io::ErrorKind::ConnectionRefused,
+            _ => false,
+        };
+        let (device, session, receiver) = if retry {
+            start_server()?;
+            self.install_stream(&command, &mut buffer)
+        } else {
+            (device, session, receiver)
+        };
         // the session reports its result only once the command ends, so its output is collected
         // until the adb server closes the stream
-        let (sender, receiver) = mpsc::channel();
-        let mut device = self.device();
-        let session = device.exec(&command, &mut file, Box::new(Forward(sender)));
         let mut reply = Vec::new();
+        if session.is_err() {
+            // the copy of the apk failed: the command on the device waits for bytes which never
+            // come, so close the connection, which ends the reader and closes the channel
+            drop(device);
+        }
         while let Ok(chunk) = receiver.recv() {
             reply.extend_from_slice(&chunk);
         }
@@ -169,17 +184,51 @@ impl Adb {
     /// Remove the package from the device
     pub fn uninstall(&self, package: &str) -> Result<(), Error> {
         debug!("Uninstall `{package}` from the device");
-        self.device()
-            .uninstall(package, None)
-            .map_err(Error::Client)
+        self.with_device(|device| device.uninstall(package, None))
     }
 
     /// Ask the adb server to open the connections to `remote` on the device into `local`
     pub fn reverse(&self, remote: &str, local: &str) -> Result<(), Error> {
         debug!("Reverse `{remote}` into `{local}`");
-        self.device()
-            .reverse(remote.to_owned(), local.to_owned())
-            .map_err(Error::Client)
+        self.with_device(|device| device.reverse(remote.to_owned(), local.to_owned()))
+    }
+
+    /// Run `operation` against the device through a fresh connection
+    ///
+    /// When the connection is refused, the adb server does not run: start it as the `adb`
+    /// program did, then try once more.
+    fn with_device<T>(
+        &self,
+        mut operation: impl FnMut(&mut ADBServerDevice) -> Result<T, RustADBError>,
+    ) -> Result<T, Error> {
+        let mut device = self.device();
+        match operation(&mut device) {
+            Err(RustADBError::IOError(err)) if err.kind() == io::ErrorKind::ConnectionRefused => {
+                start_server()?;
+                operation(&mut device).map_err(Error::Client)
+            }
+            result => result.map_err(Error::Client),
+        }
+    }
+
+    /// Stream the apk into the device, with a reader thread collecting its output into a
+    /// channel
+    ///
+    /// The device must stay alive until the adb server closes the stream, which happens once
+    /// the command on the device ends.
+    fn install_stream(
+        &self,
+        command: &str,
+        buffer: &mut Vec<u8>,
+    ) -> (
+        ADBServerDevice,
+        Result<(), RustADBError>,
+        mpsc::Receiver<Vec<u8>>,
+    ) {
+        let (sender, receiver) = mpsc::channel();
+        let mut device = self.device();
+        let session = device.exec(command, &mut buffer.as_slice(), Box::new(Forward(sender)));
+        (device, session, receiver)
     }
 
     /// A connection to the device through the adb server
@@ -205,5 +254,21 @@ impl io::Write for Forward {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+/// Start the adb server, with the program given in `ADB` or `adb` from `PATH`
+///
+/// The adb server is the one part of adb which the `adb_client` library cannot create: it
+/// talks to a running server only.
+pub(crate) fn start_server() -> io::Result<()> {
+    let program = std::env::var_os("ADB").unwrap_or_else(|| "adb".into());
+    let status = Command::new(program).arg("start-server").status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!(
+            "`adb start-server` failed ({status})"
+        )))
     }
 }
