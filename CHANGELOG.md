@@ -2,6 +2,24 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+# [v0.3.0](https://github.com/HoppouDev/ret/compare/f153cd7c666d6c2d1260523892d36eb25f9e906e..v0.3.0) - 2026-10-29
+### Features
+- (**adb**) also look for the apk next to the program - ([867a00f](https://github.com/HoppouDev/ret/commit/867a00f0b9e3acc32aee469fa06f1e9283879d71)) - HoppouDev
+- (**adb**) fall back to the apk installed by the system package - ([2562e38](https://github.com/HoppouDev/ret/commit/2562e38929400bb199fbf8b8e7cc6d5888dc529f)) - HoppouDev
+### Bug Fixes
+- (**adb**) start the adb server when missing and unblock the install stream - ([681421a](https://github.com/HoppouDev/ret/commit/681421a03e88dcc21a2a625d10712fdd96d3c677)) - HoppouDev
+### Build system
+- (**gradle**) add gradle spotless plugin fr this time - ([f153cd7](https://github.com/HoppouDev/ret/commit/f153cd7c666d6c2d1260523892d36eb25f9e906e)) - HoppouDev
+- (**packaging**) add Debian, Fedora, RHEL, Alpine and AppImage packages - ([f018690](https://github.com/HoppouDev/ret/commit/f0186905affba23f8615a0f2129e6111653e7a9f)) - HoppouDev
+- (**packaging**) add a Windows installer and an Arch Linux package - ([9467771](https://github.com/HoppouDev/ret/commit/9467771de5a0153d56e4c7859ce37f32c7495640)) - HoppouDev
+- move the packaging scripts into packaging - ([b747142](https://github.com/HoppouDev/ret/commit/b74714221240087c7d4b33251a51d9c0395a83d5)) - HoppouDev
+### Refactoring
+- (**adb**) run the device commands with adb_client instead of the adb executable - ([599085a](https://github.com/HoppouDev/ret/commit/599085a5297286ce101424a07d93a29aec5440a7)) - HoppouDev
+### Miscellaneous Chores
+- (**assets**) add the logo and its affinity source - ([8d2f3bc](https://github.com/HoppouDev/ret/commit/8d2f3bc929068a1e17d1e3e74743d6992b47dc1c)) - HoppouDev
+
+- - -
+
 # [v0.2.0](https://github.com/HoppouDev/ret/compare/561c0030796191c1514b6049a4ffb41bebecec77..v0.2.0) - 2026-10-13
 ### Features
 - (**adb**) get the name and kind of devices and whether their client runs - ([de51803](https://github.com/HoppouDev/ret/commit/de51803e82f3cc6687953d27f3ad36ec1069ffb1)) - HoppouDev
