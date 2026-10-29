@@ -5,4 +5,5 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+adb_client.workspace = true
 tracing.workspace = true

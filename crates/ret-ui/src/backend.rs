@@ -66,8 +66,7 @@ fn device_lists() -> impl Stream<Item = Vec<Device>> {
         thread::Builder::new()
             .name("adb-devices".to_owned())
             .spawn(move || {
-                let adb = Adb::from_env(None);
-                track::watch_device_lists(&adb, |devices| {
+                track::watch_device_lists(|devices| {
                     let _ = lists.send(devices);
                 })
             })
@@ -82,7 +81,7 @@ fn device_lists() -> impl Stream<Item = Vec<Device>> {
 
 /// The name and kind of the device `serial`, `None` if it cannot be asked
 pub async fn device_info(serial: String) -> Option<DeviceInfo> {
-    let adb = Adb::from_env(Some(serial.clone()));
+    let adb = Adb::new(Some(serial.clone()));
     match tokio::task::spawn_blocking(move || info::device_info(&adb)).await {
         Ok(Ok(info)) => Some(info),
         Ok(Err(err)) => {
@@ -95,7 +94,7 @@ pub async fn device_info(serial: String) -> Option<DeviceInfo> {
 
 /// Whether the client of the device `serial` runs, `None` if it cannot be asked
 pub async fn client_running(serial: String) -> Option<bool> {
-    let adb = Adb::from_env(Some(serial.clone()));
+    let adb = Adb::new(Some(serial.clone()));
     match tokio::task::spawn_blocking(move || client::is_running(&adb)).await {
         Ok(Ok(running)) => Some(running),
         Ok(Err(err)) => {
@@ -130,7 +129,7 @@ impl fmt::Display for Action {
 pub async fn run(serial: String, action: Action, options: StartOptions) -> Result<(), String> {
     let context = format!("cannot {action} the client on {serial}");
     let work = move || -> anyhow::Result<()> {
-        let adb = Adb::from_env(Some(serial));
+        let adb = Adb::new(Some(serial));
         match action {
             Action::Start => client::start(&adb, &options)?,
             Action::Stop => client::stop(&adb)?,

@@ -1,13 +1,15 @@
 //! Detection of the devices connected to adb, through the adb server protocol
+//!
+//! Starting the adb server is the only work still done by the `adb` program: the
+//! [`adb_client`] library talks to a running server, but cannot create one.
 
 use std::collections::HashSet;
 use std::io::{self, BufReader, Read, Write};
 use std::net::{Ipv4Addr, TcpStream};
+use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::{error, info};
-
-use crate::adb::Adb;
 
 const SERVER_PORT: u16 = 5037;
 
@@ -35,9 +37,9 @@ impl Device {
 ///
 /// The devices already connected count as new. When the adb server cannot be reached, it is
 /// started.
-pub fn watch_devices(adb: &Adb, mut on_connected: impl FnMut(&str)) -> ! {
+pub fn watch_devices(mut on_connected: impl FnMut(&str)) -> ! {
     let mut available = Available::default();
-    watch_device_lists(adb, |devices| {
+    watch_device_lists(|devices| {
         for serial in available.update(&devices) {
             on_connected(&serial);
         }
@@ -49,7 +51,7 @@ pub fn watch_devices(adb: &Adb, mut on_connected: impl FnMut(&str)) -> ! {
 /// When the connection to the adb server is lost, `on_list` gets an empty list and the server is
 /// started. A restarted server lost the reverse tunnels, so the devices are then reported again
 /// as new.
-pub fn watch_device_lists(adb: &Adb, mut on_list: impl FnMut(Vec<Device>)) -> ! {
+pub fn watch_device_lists(mut on_list: impl FnMut(Vec<Device>)) -> ! {
     loop {
         let result = TcpStream::connect((Ipv4Addr::LOCALHOST, SERVER_PORT))
             .and_then(|stream| track(stream, &mut on_list));
@@ -58,13 +60,26 @@ pub fn watch_device_lists(adb: &Adb, mut on_list: impl FnMut(Vec<Device>)) -> ! 
         }
         on_list(Vec::new());
         info!("Starting the adb server");
-        match adb.run(&["start-server"]) {
+        match start_server() {
             Ok(()) => thread::sleep(RETRY_DELAY),
             Err(err) => {
                 error!("Cannot start the adb server: {err}");
                 thread::sleep(RETRY_DELAY_SERVER_DOWN);
             }
         }
+    }
+}
+
+/// Start the adb server, with the program given in `ADB` or `adb` from `PATH`
+fn start_server() -> io::Result<()> {
+    let program = std::env::var_os("ADB").unwrap_or_else(|| "adb".into());
+    let status = Command::new(program).arg("start-server").status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!(
+            "`adb start-server` failed ({status})"
+        )))
     }
 }
 

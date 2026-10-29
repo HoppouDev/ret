@@ -27,7 +27,7 @@ pub struct DeviceInfo {
 
 /// Ask the device for its name and kind
 pub fn device_info(adb: &Adb) -> Result<DeviceInfo, Error> {
-    adb.output(&["shell", QUERY]).map(|output| parse(&output))
+    adb.output(QUERY).map(|output| parse(&output))
 }
 
 fn parse(output: &str) -> DeviceInfo {

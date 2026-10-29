@@ -30,7 +30,7 @@ pub fn autorun(options: StartOptions) -> Result<(), String> {
     let (events, receiver) = mpsc::channel();
     watch_devices(events.clone());
 
-    let adb = Adb::from_env(None);
+    let adb = Adb::new(None);
     let mut clients = Clients::default();
     let mut relay: Option<RelayServer> = None;
     let mut next_relay_id = 0;
@@ -89,8 +89,7 @@ fn watch_devices(events: mpsc::Sender<Event>) {
     thread::Builder::new()
         .name("adb-devices".to_owned())
         .spawn(move || {
-            let adb = Adb::from_env(None);
-            track::watch_device_lists(&adb, |devices| {
+            track::watch_device_lists(|devices| {
                 let available = devices
                     .into_iter()
                     .filter(|device| device.is_available())

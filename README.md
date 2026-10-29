@@ -24,8 +24,9 @@ The Android application requires at least API 21 (Android 5.0).
 
 ### adb
 
-You need a recent version of [adb] (where `adb reverse` is implemented, it
-works with 1.0.36).
+ret talks to your devices through the [adb server] of your machine, with the
+[adb_client] library. The `adb` program is only used to start that server
+when no server runs yet, so a recent [adb] still has to be available.
 
 It is available in the [Android SDK platform tools][platform-tools].
 
@@ -41,7 +42,8 @@ _ret_ directory:
 
 Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
-[adb]: https://developer.android.com/studio/command-line/adb.html
+[adb_client]: https://github.com/cocool97/adb_client
+[adb server]: https://developer.android.com/tools/adb
 [enable-adb]: https://developer.android.com/studio/command-line/adb.html#Enabling
 [platform-tools]: https://developer.android.com/studio/releases/platform-tools.html
 [platform-tools-windows]: https://dl.google.com/android/repository/platform-tools-latest-windows.zip
@@ -224,7 +226,8 @@ To stop a client:
 
 ## Environment variables
 
-`ADB` defines a custom path to the `adb` executable:
+`ADB` defines a custom path to the `adb` executable, which ret uses to start
+the adb server:
 
 ```bash
 ADB=/path/to/my/adb ./ret run

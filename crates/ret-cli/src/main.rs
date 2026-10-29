@@ -25,28 +25,24 @@ fn main() -> ExitCode {
 
 fn execute(command: Command) -> Result<(), Box<dyn Error>> {
     match command {
-        Command::Install(device) => client::install(&Adb::from_env(device.serial))?,
-        Command::Uninstall(device) => client::uninstall(&Adb::from_env(device.serial))?,
+        Command::Install(device) => client::install(&Adb::new(device.serial))?,
+        Command::Uninstall(device) => client::uninstall(&Adb::new(device.serial))?,
         Command::Reinstall(device) => {
-            let adb = Adb::from_env(device.serial);
+            let adb = Adb::new(device.serial);
             client::uninstall(&adb)?;
             client::install(&adb)?;
         }
-        Command::Run { device, start } => run(Adb::from_env(device.serial), start.into())?,
+        Command::Run { device, start } => run(Adb::new(device.serial), start.into())?,
         Command::Autorun(start) => autorun::autorun(start.into())?,
-        Command::Start { device, start } => {
-            client::start(&Adb::from_env(device.serial), &start.into())?
-        }
+        Command::Start { device, start } => client::start(&Adb::new(device.serial), &start.into())?,
         Command::Autostart(start) => autostart(start.into()),
-        Command::Stop(device) => client::stop(&Adb::from_env(device.serial))?,
+        Command::Stop(device) => client::stop(&Adb::new(device.serial))?,
         Command::Restart { device, start } => {
-            let adb = Adb::from_env(device.serial);
+            let adb = Adb::new(device.serial);
             client::stop(&adb)?;
             client::start(&adb, &start.into())?;
         }
-        Command::Tunnel { device, port } => {
-            client::tunnel(&Adb::from_env(device.serial), port.port)?
-        }
+        Command::Tunnel { device, port } => client::tunnel(&Adb::new(device.serial), port.port)?,
         Command::Relay(port) => relay(port.port)?,
     }
     Ok(())
@@ -68,9 +64,8 @@ fn run(adb: Adb, options: StartOptions) -> Result<(), Box<dyn Error>> {
 
 /// Start the client on every device that connects, forever
 fn autostart(options: StartOptions) -> ! {
-    let adb = Adb::from_env(None);
-    track::watch_devices(&adb, |serial| {
-        client::spawn_start(adb.with_serial(serial), options.clone());
+    track::watch_devices(|serial| {
+        client::spawn_start(Adb::new(Some(serial.to_owned())), options.clone());
     })
 }
 

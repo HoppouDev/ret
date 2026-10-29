@@ -44,19 +44,18 @@ fn apk_path() -> OsString {
 
 pub fn install(adb: &Adb) -> Result<(), Error> {
     info!("Installing the client");
-    let apk = apk_path();
-    adb.run(&["install", "-r", &apk.to_string_lossy()])
+    adb.install(&apk_path())
 }
 
 pub fn uninstall(adb: &Adb) -> Result<(), Error> {
     info!("Uninstalling the client");
-    adb.run(&["uninstall", PACKAGE])
+    adb.uninstall(PACKAGE)
 }
 
 /// Install the client if it is missing or another version, then start it
 pub fn start(adb: &Adb, options: &StartOptions) -> Result<(), Error> {
     info!("Checking the client");
-    let dumpsys = adb.output(&["shell", "dumpsys", "package", PACKAGE])?;
+    let dumpsys = adb.output(&format!("dumpsys package {PACKAGE}"))?;
     let installed = installed_version_code(&dumpsys).and_then(|code| code.parse().ok());
     if installed != Some(VERSION_CODE) {
         install(adb)?;
@@ -65,22 +64,14 @@ pub fn start(adb: &Adb, options: &StartOptions) -> Result<(), Error> {
 
     info!("Starting the client");
     tunnel(adb, options.port)?;
-    let mut args = vec![
-        "shell",
-        "am",
-        "start",
-        "-a",
-        "dev.hoppou.ret.START",
-        "-n",
-        ACTIVITY,
-    ];
+    let mut command = format!("am start -a dev.hoppou.ret.START -n {ACTIVITY}");
     if let Some(dns_servers) = &options.dns_servers {
-        args.extend(["--esa", "dnsServers", dns_servers]);
+        command += &format!(" --esa dnsServers {dns_servers}");
     }
     if let Some(routes) = &options.routes {
-        args.extend(["--esa", "routes", routes]);
+        command += &format!(" --esa routes {routes}");
     }
-    adb.run(&args)
+    adb.run(&command)
 }
 
 /// Start the client in the background, so that the relay server can start meanwhile
@@ -94,24 +85,15 @@ pub fn spawn_start(adb: Adb, options: StartOptions) {
 
 pub fn stop(adb: &Adb) -> Result<(), Error> {
     info!("Stopping the client");
-    adb.run(&[
-        "shell",
-        "am",
-        "start",
-        "-a",
-        "dev.hoppou.ret.STOP",
-        "-n",
-        ACTIVITY,
-    ])
+    adb.run(&format!("am start -a dev.hoppou.ret.STOP -n {ACTIVITY}"))
 }
 
 /// Forward the connections of the client to the relay server
 pub fn tunnel(adb: &Adb, port: u16) -> Result<(), Error> {
-    adb.run(&[
-        "reverse",
+    adb.reverse(
         &format!("localabstract:{SOCKET_NAME}"),
         &format!("tcp:{port}"),
-    ])
+    )
 }
 
 /// Address of the VPN interface of the client, `VPN_ADDRESS` in `RetService.kt`
@@ -134,7 +116,7 @@ const RUNNING_QUERY: &str = "ip -o -4 addr show; echo '--- vpn networks'; \
 /// is closed. Other VPN apps may use the same address (gnirehtet, many WireGuard setups), so on
 /// Android 12 and later, which name the session of each VPN, the session must be the client's.
 pub fn is_running(adb: &Adb) -> Result<bool, Error> {
-    adb.output(&["shell", RUNNING_QUERY])
+    adb.output(RUNNING_QUERY)
         .map(|output| client_vpn_up(&output))
 }
 
