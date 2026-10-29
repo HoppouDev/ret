@@ -1,7 +1,7 @@
 //! Control of the ret Android app (the client) through adb
 
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 use tracing::{error, info};
@@ -39,20 +39,31 @@ const SOCKET_NAME: &str = "ret";
 const INSTALL_SETTLE_DELAY: Duration = Duration::from_millis(500);
 
 /// Path of the apk: `RET_APK` when set, `ret.apk` in the current directory, or the copy
-/// installed by the system package
+/// shipped in the same prefix as the program
 fn apk_path() -> OsString {
-    apk_path_from(std::env::var_os("RET_APK"), Path::new("ret.apk").exists())
+    apk_path_from(
+        std::env::var_os("RET_APK"),
+        Path::new("ret.apk").exists(),
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.ancestors().nth(2).map(PathBuf::from)),
+    )
 }
 
-/// The apk path for the value of `RET_APK` and whether `ret.apk` sits in the current directory
+/// The apk path for the value of `RET_APK`, a local `ret.apk`, and the prefix of the program
 ///
 /// A value set by the user always wins, even when it points nowhere, so that a mistake stays
 /// visible instead of falling back to another file.
-fn apk_path_from(env: Option<OsString>, local_apk: bool) -> OsString {
+fn apk_path_from(env: Option<OsString>, local_apk: bool, prefix: Option<PathBuf>) -> OsString {
     match env {
         Some(path) => path,
         None if local_apk => "ret.apk".into(),
-        None => "/usr/share/ret/ret.apk".into(),
+        None => {
+            let apk = prefix.map(|prefix| prefix.join("share/ret/ret.apk"));
+            apk.filter(|apk| apk.exists())
+                .map(PathBuf::into_os_string)
+                .unwrap_or_else(|| "/usr/share/ret/ret.apk".into())
+        }
     }
 }
 
@@ -183,14 +194,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn apk_path_of_the_environment_and_of_the_local_directory() {
-        let path = |env: Option<OsString>, local_apk: bool| {
-            apk_path_from(env, local_apk).to_string_lossy().into_owned()
+    fn apk_path_of_the_environment_the_local_directory_and_the_prefix() {
+        let path = |env: Option<OsString>, local_apk: bool, prefix: Option<&str>| {
+            apk_path_from(env, local_apk, prefix.map(std::path::PathBuf::from))
+                .to_string_lossy()
+                .into_owned()
         };
-        assert_eq!(path(Some("custom.apk".into()), true), "custom.apk");
-        assert_eq!(path(Some("missing.apk".into()), true), "missing.apk");
-        assert_eq!(path(None, true), "ret.apk");
-        assert_eq!(path(None, false), "/usr/share/ret/ret.apk");
+        assert_eq!(path(Some("custom.apk".into()), true, None), "custom.apk");
+        assert_eq!(path(Some("missing.apk".into()), true, None), "missing.apk");
+        assert_eq!(path(None, true, None), "ret.apk");
+        assert_eq!(path(None, false, None), "/usr/share/ret/ret.apk");
+        let root = std::env::temp_dir().join(format!("ret-apk-{}", std::process::id()));
+        let apk = root.join("share/ret/ret.apk");
+        std::fs::create_dir_all(apk.parent().unwrap()).unwrap();
+        std::fs::write(&apk, b"apk").unwrap();
+        assert_eq!(
+            path(None, false, Some(root.to_str().unwrap())),
+            apk.to_string_lossy()
+        );
+        assert_eq!(
+            path(None, false, Some(root.join("nowhere").to_str().unwrap())),
+            "/usr/share/ret/ret.apk"
+        );
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[test]
