@@ -1,6 +1,7 @@
 //! Control of the ret Android app (the client) through adb
 
 use std::ffi::OsString;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use tracing::{error, info};
@@ -37,9 +38,22 @@ const SOCKET_NAME: &str = "ret";
 /// Delay after an install, so that the app actions are registered before they are started
 const INSTALL_SETTLE_DELAY: Duration = Duration::from_millis(500);
 
-/// Path of the apk, from the `RET_APK` environment variable or `ret.apk`
+/// Path of the apk: `RET_APK` when set, `ret.apk` in the current directory, or the copy
+/// installed by the system package
 fn apk_path() -> OsString {
-    std::env::var_os("RET_APK").unwrap_or_else(|| "ret.apk".into())
+    apk_path_from(std::env::var_os("RET_APK"), Path::new("ret.apk").exists())
+}
+
+/// The apk path for the value of `RET_APK` and whether `ret.apk` sits in the current directory
+///
+/// A value set by the user always wins, even when it points nowhere, so that a mistake stays
+/// visible instead of falling back to another file.
+fn apk_path_from(env: Option<OsString>, local_apk: bool) -> OsString {
+    match env {
+        Some(path) => path,
+        None if local_apk => "ret.apk".into(),
+        None => "/usr/share/ret/ret.apk".into(),
+    }
 }
 
 pub fn install(adb: &Adb) -> Result<(), Error> {
@@ -167,6 +181,17 @@ const fn parse(number: &str) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apk_path_of_the_environment_and_of_the_local_directory() {
+        let path = |env: Option<OsString>, local_apk: bool| {
+            apk_path_from(env, local_apk).to_string_lossy().into_owned()
+        };
+        assert_eq!(path(Some("custom.apk".into()), true), "custom.apk");
+        assert_eq!(path(Some("missing.apk".into()), true), "missing.apk");
+        assert_eq!(path(None, true), "ret.apk");
+        assert_eq!(path(None, false), "/usr/share/ret/ret.apk");
+    }
 
     #[test]
     fn read_version_code_of_installed_package() {

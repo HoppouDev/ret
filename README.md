@@ -233,7 +233,9 @@ the adb server:
 ADB=/path/to/my/adb ./ret run
 ```
 
-`RET_APK` defines a custom path to `ret.apk`:
+`RET_APK` defines a custom path to `ret.apk`. Without it, ret looks for
+`ret.apk` in the current directory, then for the copy installed by the Arch
+package at `/usr/share/ret/ret.apk`:
 
 ```bash
 RET_APK=/usr/share/ret/ret.apk ./ret run
