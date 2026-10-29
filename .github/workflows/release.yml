@@ -64,7 +64,7 @@ jobs:
           cp target/release/ret.exe target/release/ret-ui.exe dist/ret-win64/
           cp packaging/windows/ret-run.cmd dist/ret-win64/
           cp apk/ret-release.apk dist/ret-win64/ret.apk
-          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+          MSYS2_ARG_CONV_EXCL='*' "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
             /DAppVersion="${GITHUB_REF_NAME#v}" \
             "/DFilesDir=$(cygpath -w "$PWD/dist/ret-win64")" \
             "/DOutputDir=$(cygpath -w "$PWD/dist")" \
