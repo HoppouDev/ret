@@ -33,6 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # the installer embeds the icon of the repository, stored with git lfs
+          lfs: true
           persist-credentials: false
 
       # no build cache: a release must not restore artifacts written by other workflows
@@ -130,6 +132,7 @@ jobs:
         with:
           # cog reads the whole history and the tags to generate the changelog
           fetch-depth: 0
+          # the packages embed the icon of the repository, stored with git lfs
           persist-credentials: false
 
       - uses: cocogitto/cocogitto-action@52d0023b4396897f1815648e553db2ab8d782f3a # v4.2.0
