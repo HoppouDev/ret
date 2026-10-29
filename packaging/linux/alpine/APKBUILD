@@ -11,10 +11,10 @@ makedepends="cargo unzip"
 optdepends="vulkan-loader: the fast rendering of ret-ui
 	android-tools: adb, which starts the adb server when none runs"
 source="$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz
-	ret-linux64-$pkgver.zip::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-linux64-v$pkgver.zip"
+	ret.apk::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-v$pkgver.apk"
 sha512sums="
 7ececc967442b2311c776ad5eca26d6ab6c3649d93fdf806c07e5c9cf5f7ba64e99ac4bf8857d98e7667f4e93d4bdbee99ad80598799b497677ab891912b0041  ret-0.2.0.tar.gz
-174c148a3612e6389ed70eb4cd720def9e0f961ee26e96df3972218f3313c3394e11f2154241fb85789c13cc56066ad90ec3e9f78d41b7ae8b1a447eff134e3a  ret-linux64-0.2.0.zip
+b490da8a377242496463a0a2b78e7d3e5953acb180634ad2383ae057abe0028c0e0d4055d5bd8871e6fc9ba9058f020de12ff4172e18f863cdf621d13b608354  ret.apk
 "
 
 prepare() {
@@ -33,7 +33,7 @@ check() {
 package() {
 	install -Dm755 target/release/ret -t "$pkgdir"/usr/bin/
 	install -Dm755 target/release/ret-ui -t "$pkgdir"/usr/bin/
-	install -Dm644 "$srcdir"/ret-linux64/ret.apk "$pkgdir"/usr/share/ret/ret.apk
+	install -Dm644 "$srcdir"/ret.apk "$pkgdir"/usr/share/ret/ret.apk
 	install -Dm644 packaging/linux/ret.desktop "$pkgdir"/usr/share/applications/ret.desktop
 	install -Dm644 assets/ret.png "$pkgdir"/usr/share/icons/hicolor/256x256/apps/ret.png
 	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/ret/LICENSE

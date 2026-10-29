@@ -53,20 +53,17 @@ Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
 Download the [latest release][latest] and extract it.
 
-[latest]: https://github.com/HoppouDev/ret/releases/latest
-
-The Linux archive (`ret-linux64-<version>.zip`) contains:
+The Linux tarball (`ret-x86_64-<version>.tar.gz`) contains:
  - `ret.apk`
  - `ret`
  - `ret-ui`
 
-The Windows archive (`ret-win64-<version>.zip`) contains:
- - `ret.apk`
- - `ret.exe`
- - `ret-ui.exe`
- - `ret-run.cmd`
+On Windows, run the installer (`ret-setup-<version>.exe`), which puts `ret`
+and `ret-ui` on the user `Path` and installs the same `ret.apk`.
 
-Each release also lists the SHA-256 of both archives in `SHA256SUMS.txt`.
+Every release also publishes packages for Debian, Fedora, openSUSE, RHEL and
+Alpine, an AppImage which runs on any other distribution, and the Android
+application (`ret-<version>.apk`) on its own.
 
 ### Coming from Gnirehtet
 

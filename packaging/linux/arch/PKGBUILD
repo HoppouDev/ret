@@ -21,10 +21,10 @@ optdepends=(
 )
 source=(
   "$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz"
-  "ret-linux64-$pkgver.zip::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-linux64-v$pkgver.zip"
+  "ret.apk::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-v$pkgver.apk"
 )
 sha256sums=('89afc2e66f065c7dbb9042b78ee4a13a953e53fdeb9134dadf1855a2a2fc7eb6'
-            '1ddf1a62fda0a21c848f48df0fce119fd0d7074186f3b32bbc42866abfbeb7bc')
+            'b490da8a377242496463a0a2b78e7d3e5953acb180634ad2383ae057abe0028c0e0d4055d5bd8871e6fc9ba9058f020de12ff4172e18f863cdf621d13b608354')
 
 prepare() {
   # the cache of cargo lives inside the build directory, not in the home of the user
@@ -52,7 +52,7 @@ check() {
 package() {
   install -Dm755 "$srcdir/target/release/ret" "$pkgdir/usr/bin/ret"
   install -Dm755 "$srcdir/target/release/ret-ui" "$pkgdir/usr/bin/ret-ui"
-  install -Dm644 "$srcdir/ret-linux64/ret.apk" "$pkgdir/usr/share/ret/ret.apk"
+  install -Dm644 "$srcdir/ret.apk" "$pkgdir/usr/share/ret/ret.apk"
   install -Dm644 "$pkgname-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/ret/LICENSE"
   install -Dm644 "$startdir/../ret.desktop" "$pkgdir/usr/share/applications/ret.desktop"
   install -Dm644 "$startdir/../../../assets/ret.png" \

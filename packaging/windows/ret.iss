@@ -40,7 +40,10 @@ DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\..\LICENSE
 OutputBaseFilename=ret-setup-{#AppVersion}
-OutputDir=..\..\dist
+#ifndef OutputDir
+  #define OutputDir "..\dist"
+#endif
+OutputDir={#OutputDir}
 SetupIconFile=..\..\assets\ret.ico
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\ret-ui.exe
