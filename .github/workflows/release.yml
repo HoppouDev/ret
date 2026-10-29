@@ -214,6 +214,7 @@ jobs:
             cp /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
             su builder -c "cd /home/builder/test && abuild -r"
             cp /home/builder/packages/builder/x86_64/ret-*.apk /work/dist/
+          '
 
           # the Arch Linux package, built in a container against the pacman of the image
           docker run --rm \
