@@ -124,7 +124,7 @@ jobs:
           done
           cp bin/apk/ret-release.apk "dist/$linux/ret.apk"
           cp bin/binary-windows/ret.exe bin/binary-windows/ret-ui.exe \
-            crates/ret-cli/scripts/ret-run.cmd "dist/$windows/"
+            packaging/windows/ret-run.cmd "dist/$windows/"
           cp bin/apk/ret-release.apk "dist/$windows/ret.apk"
 
           cd dist
