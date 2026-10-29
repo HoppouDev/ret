@@ -214,6 +214,22 @@ jobs:
             cp /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
             su builder -c "cd /home/builder/test && abuild -r"
             cp /home/builder/packages/builder/x86_64/ret-*.apk /work/dist/
+
+          # the Arch Linux package, built in a container against the pacman of the image
+          docker run --rm \
+            -e VERSION="$version" -v "$PWD":/work -w /work archlinux:base-devel bash -ec '
+            sed -i "s/^pkgver=.*/pkgver=$version/" packaging/linux/arch/PKGBUILD
+            pacman -Sy archlinux-keyring --noconfirm
+            pacman -Syu --needed --noconfirm rust pacman-contrib hicolor-icon-theme libxkbcommon libxkbcommon-x11 wayland libglvnd
+            useradd -m builder
+            mkdir -p /home/builder/packaging/linux/arch /home/builder/assets /home/builder/srcdest
+            cp packaging/linux/arch/PKGBUILD /home/builder/packaging/linux/arch/
+            cp packaging/linux/ret.desktop /home/builder/packaging/linux/
+            cp assets/ret.png /home/builder/assets/
+            cp dist/ret-v'"$version"'.apk /home/builder/srcdest/ret-v'"$version"'.apk
+            chown -R builder:builder /home/builder
+            su builder -c "export SRCDEST=/home/builder/srcdest && cd /home/builder/packaging/linux/arch && updpkgsums && makepkg -f"
+            cp /home/builder/packaging/linux/arch/ret-*.pkg.tar.zst /work/dist/
           '
 
           # the Windows installer, built by the windows job
@@ -229,4 +245,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --notes-file notes.md \
             dist/ret-x86_64-*.tar.gz dist/ret-v*.apk dist/*.deb dist/*.rpm \
-            dist/ret-0.*.apk dist/*.AppImage dist/ret-setup-*.exe
+            dist/ret-0.*.apk dist/*.AppImage dist/ret-setup-*.exe dist/*.pkg.tar.zst

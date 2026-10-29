@@ -1,6 +1,6 @@
 # Maintainer: HoppouDev <me@hoppou.dev>
 pkgname=ret
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc='Reverse tethering for Android over adb'
 arch=(x86_64)
@@ -23,8 +23,8 @@ source=(
   "$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz"
   "ret.apk::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-v$pkgver.apk"
 )
-sha256sums=('89afc2e66f065c7dbb9042b78ee4a13a953e53fdeb9134dadf1855a2a2fc7eb6'
-            'b490da8a377242496463a0a2b78e7d3e5953acb180634ad2383ae057abe0028c0e0d4055d5bd8871e6fc9ba9058f020de12ff4172e18f863cdf621d13b608354')
+sha256sums=('7e660eb3fa6654f7eb5a2fb2d8f008d00c71e5e2f55f5d7eb37fb42fcb8d339b'
+            '6a9c9a1180475e3241f29a74a057f25de009880dc6071720e2506d025524f0df')
 
 prepare() {
   # the cache of cargo lives inside the build directory, not in the home of the user

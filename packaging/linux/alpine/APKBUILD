@@ -1,6 +1,6 @@
 # Maintainer: HoppouDev <me@hoppou.dev>
 pkgname=ret
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=0
 pkgdesc="Reverse tethering for Android over adb"
 url="https://github.com/HoppouDev/ret"
@@ -13,8 +13,8 @@ optdepends="vulkan-loader: the fast rendering of ret-ui
 source="$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz
 	ret.apk::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-v$pkgver.apk"
 sha512sums="
-7ececc967442b2311c776ad5eca26d6ab6c3649d93fdf806c07e5c9cf5f7ba64e99ac4bf8857d98e7667f4e93d4bdbee99ad80598799b497677ab891912b0041  ret-0.2.0.tar.gz
-b490da8a377242496463a0a2b78e7d3e5953acb180634ad2383ae057abe0028c0e0d4055d5bd8871e6fc9ba9058f020de12ff4172e18f863cdf621d13b608354  ret.apk
+8a63f1977dd73c10a93187eeb40764ce830b1a0aa0f88fff82e0a14f00665f91d7409c99d9e9b8886ed0706e3a58c250911d38e97af361cce772e2827637a340  ret-0.3.0.tar.gz
+2dd6fbba77c107874cb2eacdb6b9bc3a733959edec9aa250544992e2bb9a6f7df1cd5982bab1fd9552d0940eed903fc8dd0f9ff43e55f2109836e192f953c48c  ret.apk
 "
 
 prepare() {
