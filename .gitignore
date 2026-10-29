@@ -6,6 +6,10 @@ target/
 /local.properties
 .kotlin/
 dist/
+AppDir/
+target-appimage/
+target-rhel/
+appimagetool.AppImage
 packaging/linux/arch/*
 !packaging/linux/arch/PKGBUILD
 # lock files of Affinity, next to the documents it has open

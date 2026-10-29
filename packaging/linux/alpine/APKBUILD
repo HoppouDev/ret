@@ -1,0 +1,40 @@
+# Maintainer: HoppouDev <me@hoppou.dev>
+pkgname=ret
+pkgver=0.2.0
+pkgrel=0
+pkgdesc="Reverse tethering for Android over adb"
+url="https://github.com/HoppouDev/ret"
+arch="x86_64"
+license="MIT"
+depends="libxkbcommon libxkbcommon-x11 wayland-libs-client wayland-libs-egl mesa-egl"
+makedepends="cargo unzip"
+optdepends="vulkan-loader: the fast rendering of ret-ui
+	android-tools: adb, which starts the adb server when none runs"
+source="$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz
+	ret-linux64-$pkgver.zip::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-linux64-v$pkgver.zip"
+sha512sums="
+7ececc967442b2311c776ad5eca26d6ab6c3649d93fdf806c07e5c9cf5f7ba64e99ac4bf8857d98e7667f4e93d4bdbee99ad80598799b497677ab891912b0041  ret-0.2.0.tar.gz
+174c148a3612e6389ed70eb4cd720def9e0f961ee26e96df3972218f3313c3394e11f2154241fb85789c13cc56066ad90ec3e9f78d41b7ae8b1a447eff134e3a  ret-linux64-0.2.0.zip
+"
+
+prepare() {
+	default_prepare
+	CARGO_HOME="$srcdir"/cargo-home cargo fetch --locked
+}
+
+build() {
+	CARGO_HOME="$srcdir"/cargo-home cargo build --release --locked
+}
+
+check() {
+	CARGO_HOME="$srcdir"/cargo-home cargo test --locked
+}
+
+package() {
+	install -Dm755 target/release/ret -t "$pkgdir"/usr/bin/
+	install -Dm755 target/release/ret-ui -t "$pkgdir"/usr/bin/
+	install -Dm644 "$srcdir"/ret-linux64/ret.apk "$pkgdir"/usr/share/ret/ret.apk
+	install -Dm644 packaging/linux/ret.desktop "$pkgdir"/usr/share/applications/ret.desktop
+	install -Dm644 assets/ret.png "$pkgdir"/usr/share/icons/hicolor/256x256/apps/ret.png
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/ret/LICENSE
+}

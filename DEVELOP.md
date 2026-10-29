@@ -142,6 +142,23 @@ the `ret.apk` of the release zip, with `makepkg`. It also installs
 Bump its `pkgver` with each release, like the version of the crates and of
 the application.
 
+The Debian and Fedora packages build from the metadata in
+`crates/ret-cli/Cargo.toml`, with the tools `cargo install cargo-deb
+cargo-generate-rpm`. Put the `ret.apk` of the release at
+`target/release/ret.apk`, then run `cargo deb -p ret-cli --no-build` and
+`cargo generate-rpm` from `crates/ret-cli`. The same rpm works on Fedora and
+openSUSE, its dependencies are the sonames of the libraries the programs
+load at runtime. The `packaging/linux/alpine/APKBUILD` is the equivalent for
+Alpine Linux, built with `abuild -r`.
+
+`packaging/linux/appimage/build` builds `dist/ret-<version>-x86_64.AppImage`
+in a container, so the image also runs on distributions which ret does not
+package for. The Android application comes from the locally built signed
+application when there is one, else from the release of the same version.
+
+`packaging/linux/rhel/build` builds `dist/ret-<version>-1.el9.x86_64.rpm`
+the same way, for Red Hat Enterprise Linux 9 and its clones.
+
 The release workflow signs the APK with the keystore stored in these repository
 secrets:
  - `RELEASE_KEYSTORE_BASE64`: the keystore file, base64-encoded
