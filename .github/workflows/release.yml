@@ -59,12 +59,12 @@ jobs:
       - name: Build the Windows installer
         if: matrix.name == 'windows'
         run: |
-          choco install innosetup -y --version 7.1.1 --force --no-progress
+          choco install innosetup --no-progress
           mkdir -p dist/ret-win64
           cp target/release/ret.exe target/release/ret-ui.exe dist/ret-win64/
           cp packaging/windows/ret-run.cmd dist/ret-win64/
           cp apk/ret-release.apk dist/ret-win64/ret.apk
-          MSYS2_ARG_CONV_EXCL='*' iscc \
+          MSYS2_ARG_CONV_EXCL='*' "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
             /DAppVersion="${GITHUB_REF_NAME#v}" \
             "/DFilesDir=$(cygpath -w "$PWD/dist/ret-win64")" \
             "/DOutputDir=$(cygpath -w "$PWD/dist")" \
