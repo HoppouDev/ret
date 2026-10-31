@@ -197,6 +197,10 @@ renaming them to `PKGBUILD` or `APKBUILD`. They download the published
 `ret-<version>.tar.gz` and `ret-v<version>.apk`, not GitHub's automatically
 generated source archives, which may contain Git LFS pointers.
 
+The Arch recipe disables makepkg's C/C++ LTO because GCC LTO objects from
+`ring` cannot be linked by Rust's LLVM linker. Cargo's Rust LTO remains
+enabled through the release profile.
+
 The checked-in recipes are build inputs. Their versions are bumped by
 cocogitto, but their historical checksums are replaced only in the copied
 release recipes. Do not use `SKIP` checksums. Each Alpine release and

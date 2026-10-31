@@ -6,7 +6,8 @@ pkgdesc='Reverse tethering for Android over adb'
 arch=(x86_64)
 url='https://github.com/HoppouDev/ret'
 license=(Apache-2.0)
-options=(!debug)
+# GCC LTO objects from ring cannot be linked by Rust's LLVM linker.
+options=(!debug !lto)
 depends=(
   gcc-libs
   glibc
