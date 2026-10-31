@@ -231,8 +231,8 @@ values recorded as added by the installer and retains custom values.
 
 #### macOS distributions
 
-Native Intel and Apple Silicon runners build with
-`MACOSX_DEPLOYMENT_TARGET=13.0`. After building both programs, run
+Native Intel (`macos-15-intel`) and Apple Silicon (`macos-15`) runners build
+with `MACOSX_DEPLOYMENT_TARGET=13.0`. After building both programs, run
 `bash packaging/build-macos <version> <x86_64|arm64> <apk-path>` on the
 matching Mac. `OUTPUT_DIR` defaults to `dist`. `CARGO_TARGET_DIR` and
 `CARGO_BUILD_TARGET` can select an existing native Cargo build.
