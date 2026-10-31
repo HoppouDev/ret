@@ -1,6 +1,6 @@
 # Maintainer: HoppouDev <me@hoppou.dev>
 pkgname=ret
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=0
 pkgdesc="Reverse tethering for Android over adb"
 url="https://github.com/HoppouDev/ret"

@@ -2,6 +2,20 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+# [v0.4.0](https://github.com/HoppouDev/ret/compare/a81d9ce7cebf2a86615b1e4821423ec24181bd04..v0.4.0) - 2026-10-31
+### Features
+- (**adb**) always use the downloaded platform tools - ([581c273](https://github.com/HoppouDev/ret/commit/581c2738976639c17bfc792fbfac16d7dfb609ce)) - HoppouDev
+- (**desktop**) show ADB tool download progress - ([0946917](https://github.com/HoppouDev/ret/commit/0946917036ca19cf016269b84d83d60ffe40aa10)) - HoppouDev
+- (**packaging**) add native ARM64 and macOS release distributions - ([8ee2e40](https://github.com/HoppouDev/ret/commit/8ee2e407d02bb65ae752583617af574beb03d95a)) - HoppouDev
+- (**ui**) title the window Ret and set its icon - ([2702943](https://github.com/HoppouDev/ret/commit/2702943f0475bed7f4c26410a2922001149be27b)) - HoppouDev
+### Bug Fixes
+- (**adb**) start the adb server without flashing a terminal - ([4fab835](https://github.com/HoppouDev/ret/commit/4fab8356e170f54caecd16f859ce3df3873258ef)) - HoppouDev
+- (**ui**) stop owned ADB server on window close - ([83d1c0a](https://github.com/HoppouDev/ret/commit/83d1c0ae284817f4f8f6291b047bb13aa29417e6)) - HoppouDev
+### Build system
+- (**release**) skip the debug package of makepkg - ([a81d9ce](https://github.com/HoppouDev/ret/commit/a81d9ce7cebf2a86615b1e4821423ec24181bd04)) - HoppouDev
+
+- - -
+
 # [v0.3.0](https://github.com/HoppouDev/ret/compare/f153cd7c666d6c2d1260523892d36eb25f9e906e..v0.3.0) - 2026-10-29
 ### Features
 - (**adb**) also look for the apk next to the program - ([867a00f](https://github.com/HoppouDev/ret/commit/867a00f0b9e3acc32aee469fa06f1e9283879d71)) - HoppouDev
