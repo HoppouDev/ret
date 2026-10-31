@@ -5,6 +5,7 @@ use iced::Subscription;
 use iced::futures::{SinkExt, Stream};
 use ret_adb::Adb;
 use ret_adb::client::{self, StartOptions};
+use ret_adb::download::Progress;
 use ret_adb::info::{self, DeviceInfo};
 use ret_adb::track::{self, Device};
 use std::fmt;
@@ -54,25 +55,44 @@ pub fn start_relay(port: u16) -> (RelayHandle, impl Future<Output = Result<(), S
     (RelayHandle { stop: Some(stop) }, result)
 }
 
-/// The devices known to adb, each time the list changes
-pub fn devices() -> Subscription<Vec<Device>> {
-    Subscription::run(device_lists)
+#[derive(Debug, Clone)]
+pub enum Event {
+    Devices(Vec<Device>),
+    Download(Progress),
 }
 
-fn device_lists() -> impl Stream<Item = Vec<Device>> {
+/// Device lists and ADB tools download progress, independent of log filtering
+pub fn devices() -> Subscription<Event> {
+    Subscription::run(device_events)
+}
+
+fn device_events() -> impl Stream<Item = Event> {
     iced::stream::channel(16, async |mut output| {
-        let (lists, mut receiver) = mpsc::unbounded_channel();
+        let (events, mut receiver) = mpsc::unbounded_channel();
+        // Register before the watcher can trigger an ADB tools download.
+        let progress = ret_adb::download::subscribe();
+        let downloads = events.clone();
+        thread::Builder::new()
+            .name("adb-download".to_owned())
+            .spawn(move || {
+                for progress in progress {
+                    if downloads.send(Event::Download(progress)).is_err() {
+                        break;
+                    }
+                }
+            })
+            .expect("cannot spawn the download progress thread");
         // the adb tracking is blocking and never ends, it lives as long as the window
         thread::Builder::new()
             .name("adb-devices".to_owned())
             .spawn(move || {
                 track::watch_device_lists(|devices| {
-                    let _ = lists.send(devices);
+                    let _ = events.send(Event::Devices(devices));
                 })
             })
             .expect("cannot spawn the adb thread");
-        while let Some(devices) = receiver.recv().await {
-            if output.send(devices).await.is_err() {
+        while let Some(event) = receiver.recv().await {
+            if output.send(event).await.is_err() {
                 break;
             }
         }

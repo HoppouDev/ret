@@ -3,6 +3,7 @@
 use iced::theme::Mode;
 use iced::{Subscription, Task, Theme, system, time};
 use ret_adb::client::StartOptions;
+use ret_adb::download::Progress;
 use ret_adb::info::DeviceInfo;
 use ret_adb::track::Device;
 use std::collections::HashSet;
@@ -32,6 +33,7 @@ pub enum Message {
     /// The relay server stopped, by itself on error or once no client needed it
     RelayStopped(Result<(), String>),
     Devices(Vec<Device>),
+    Download(Progress),
     Run(String, Action),
     Done(String, Action, Result<(), String>),
     DeviceInfo(String, DeviceInfo),
@@ -86,6 +88,7 @@ pub struct Ret {
     pub page: Page,
     pub relay: Relay,
     pub devices: Vec<DeviceRow>,
+    pub download: Progress,
     pub logs: Logs,
     /// Light or dark, as the system is
     pub mode: Mode,
@@ -110,6 +113,7 @@ impl Ret {
             page: Page::Home,
             relay: Relay::Stopped { error: None },
             devices: Vec::new(),
+            download: Progress::Idle,
             logs: Logs::default(),
             mode: Mode::None,
             tick: 0,
@@ -165,7 +169,12 @@ impl Ret {
 
     /// Whether some work is in progress, shown animated
     pub fn is_busy(&self) -> bool {
-        matches!(self.relay, Relay::Stopping) || self.devices.iter().any(|row| row.busy.is_some())
+        matches!(self.relay, Relay::Stopping)
+            || matches!(
+                self.download,
+                Progress::Downloading { .. } | Progress::Extracting
+            )
+            || self.devices.iter().any(|row| row.busy.is_some())
     }
 
     /// The port typed in, if valid
@@ -220,6 +229,7 @@ impl Ret {
                 };
             }
             Message::Devices(devices) => return self.update_devices(devices),
+            Message::Download(progress) => self.download = progress,
             Message::Run(serial, action) => {
                 self.menu = None;
                 // starting a client again retries a relay which failed
@@ -288,7 +298,10 @@ impl Ret {
             Subscription::none()
         };
         Subscription::batch([
-            backend::devices().map(Message::Devices),
+            backend::devices().map(|event| match event {
+                backend::Event::Devices(devices) => Message::Devices(devices),
+                backend::Event::Download(progress) => Message::Download(progress),
+            }),
             logs::subscription().map(Message::Logs),
             system::theme_changes().map(Message::ThemeChanged),
             tick,

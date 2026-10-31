@@ -10,6 +10,14 @@
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+mod progress;
+
+pub use progress::{Progress, subscribe};
+
+static INSTALL: Mutex<()> = Mutex::new(());
 
 use tracing::info;
 
@@ -36,46 +44,119 @@ const ADB: &str = "adb";
 /// `%AppData%` on Windows, `~/Library/Application Support` on macOS, `~/.local/share` on Linux.
 /// An install which is already there is kept, so that the archive is downloaded once.
 pub(crate) fn adb() -> io::Result<PathBuf> {
+    let _install = INSTALL.lock().unwrap_or_else(|err| err.into_inner());
     let Some(data_dir) = dirs::data_dir() else {
-        return Err(io::Error::other(
-            "the data directory of the user is unknown",
-        ));
+        let error = io::Error::other("the data directory of the user is unknown");
+        progress::publish(Progress::Failed(error.to_string()));
+        return Err(error);
     };
-    let tools = data_dir.join("ret");
+    install(&data_dir.join("ret"), download, &mut progress::publish)
+}
+
+fn install(
+    tools: &Path,
+    download: impl FnOnce(&mut dyn FnMut(Progress)) -> io::Result<Vec<u8>>,
+    publish: &mut dyn FnMut(Progress),
+) -> io::Result<PathBuf> {
     let adb = tools.join("platform-tools").join(ADB);
     if adb.is_file() {
         return Ok(adb);
     }
     info!("Downloading the platform tools into {}", tools.display());
-
-    // a partial install cannot be trusted: extract beside the final directory, then move it in
-    let staging = tools.join("platform-tools.partial");
-    let _ = fs::remove_dir_all(&staging);
-    extract(&download()?, &staging)?;
-    let _ = fs::remove_dir_all(tools.join("platform-tools"));
-    fs::rename(staging.join("platform-tools"), tools.join("platform-tools"))?;
-    let _ = fs::remove_dir(&staging);
-    Ok(adb)
+    publish(Progress::Downloading {
+        downloaded: 0,
+        total: None,
+    });
+    let result = (|| {
+        // A partial install cannot be trusted, so extract beside the final directory.
+        let staging = tools.join("platform-tools.partial");
+        let _ = fs::remove_dir_all(&staging);
+        let archive = download(publish)?;
+        publish(Progress::Extracting);
+        extract(&archive, &staging)?;
+        if !staging.join("platform-tools").join(ADB).is_file() {
+            return Err(io::Error::other(
+                "the platform tools archive contains no adb program",
+            ));
+        }
+        let _ = fs::remove_dir_all(tools.join("platform-tools"));
+        fs::rename(staging.join("platform-tools"), tools.join("platform-tools"))?;
+        let _ = fs::remove_dir(&staging);
+        Ok(adb)
+    })();
+    match &result {
+        Ok(_) => publish(Progress::Ready),
+        Err(error) => publish(Progress::Failed(error.to_string())),
+    }
+    result
 }
 
 /// Largest archive accepted, in bytes: the platform tools weigh some 16 MB today, and a
 /// response beyond this size cannot exhaust the memory
 const MAX_ARCHIVE: u64 = 64 * 1024 * 1024;
 
-/// Download the archive of the platform tools
-///
-/// The archive is read into memory in one piece: `ureq` caps a body at 10 MB by default, which
-/// the platform tools already exceed.
-fn download() -> io::Result<Vec<u8>> {
+/// Download the archive with bounded reads and throttled byte updates.
+fn download(publish: &mut dyn FnMut(Progress)) -> io::Result<Vec<u8>> {
     let mut response = ureq::get(PLATFORM_TOOLS)
         .call()
         .map_err(|err| io::Error::other(format!("cannot download the platform tools: {err}")))?;
-    response
-        .body_mut()
-        .with_config()
-        .limit(MAX_ARCHIVE)
-        .read_to_vec()
-        .map_err(|err| io::Error::other(format!("cannot read the platform tools: {err}")))
+    let total = response.body().content_length();
+    read_archive(response.body_mut().as_reader(), total, MAX_ARCHIVE, publish)
+        .map_err(|err| io::Error::new(err.kind(), format!("cannot read the platform tools: {err}")))
+}
+
+fn read_archive(
+    mut reader: impl Read,
+    total: Option<u64>,
+    limit: u64,
+    publish: &mut dyn FnMut(Progress),
+) -> io::Result<Vec<u8>> {
+    let total = total.filter(|total| *total > 0);
+    let too_large = || io::Error::other("the platform tools archive exceeds the size limit");
+    if total.is_some_and(|total| total > limit) {
+        return Err(too_large());
+    }
+    let mut archive = Vec::with_capacity(total.unwrap_or(0) as usize);
+    let mut chunk = [0; 16 * 1024];
+    let mut updated = Instant::now();
+    publish(Progress::Downloading {
+        downloaded: 0,
+        total,
+    });
+    loop {
+        // Probe one byte beyond the limit without ever storing an oversized archive.
+        let available = (limit - archive.len() as u64).saturating_add(1);
+        let size = available.min(chunk.len() as u64) as usize;
+        let count = match reader.read(&mut chunk[..size]) {
+            Ok(count) => count,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
+        if count == 0 {
+            if total.is_some_and(|total| total != archive.len() as u64) {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "incomplete platform tools archive",
+                ));
+            }
+            publish(Progress::Downloading {
+                downloaded: archive.len() as u64,
+                total,
+            });
+            return Ok(archive);
+        }
+        if count as u64 > limit - archive.len() as u64 {
+            return Err(too_large());
+        }
+        archive.extend_from_slice(&chunk[..count]);
+        if updated.elapsed() >= Duration::from_millis(500) {
+            publish(Progress::Downloading {
+                downloaded: archive.len() as u64,
+                total,
+            });
+            updated = Instant::now();
+        }
+    }
 }
 
 /// Extract the archive of the platform tools into `dir`
@@ -118,52 +199,4 @@ fn extract(archive: &[u8], dir: &Path) -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    use std::io::Write as _;
-
-    use zip::ZipWriter;
-    use zip::write::SimpleFileOptions;
-
-    /// An archive with one file per entry, compressed the same way as the platform tools
-    fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
-        let mut writer = ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        for (name, bytes) in entries {
-            writer
-                .start_file(*name, SimpleFileOptions::default())
-                .unwrap();
-            writer.write_all(bytes).unwrap();
-        }
-        writer.finish().unwrap().into_inner()
-    }
-
-    #[test]
-    fn extracts_the_entries_under_their_directories() {
-        let dir = std::env::temp_dir().join(format!("ret-adb-download-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        extract(
-            &archive(&[
-                ("platform-tools/readme", b"data"),
-                ("platform-tools/adb", b"tool"),
-            ]),
-            &dir,
-        )
-        .unwrap();
-        assert_eq!(
-            fs::read(dir.join("platform-tools/readme")).unwrap(),
-            b"data"
-        );
-        assert_eq!(fs::read(dir.join("platform-tools/adb")).unwrap(), b"tool");
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn skips_the_entries_which_escape_the_archive() {
-        let dir = std::env::temp_dir().join(format!("ret-adb-escape-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        extract(&archive(&[("../escaped", b"data")]), &dir).unwrap();
-        assert!(!dir.parent().unwrap().join("escaped").exists());
-        let _ = fs::remove_dir_all(&dir);
-    }
-}
+mod tests;

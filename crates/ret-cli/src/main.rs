@@ -1,6 +1,7 @@
 mod autorun;
 mod cli;
 mod logging;
+mod progress;
 
 use clap::Parser;
 use ret_adb::client::{self, StartOptions};
@@ -14,6 +15,7 @@ use crate::cli::{Cli, Command};
 fn main() -> ExitCode {
     let cli = Cli::parse();
     logging::init();
+    let _download_indicator = progress::init();
     match execute(cli.command) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {

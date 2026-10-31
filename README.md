@@ -35,6 +35,12 @@ and always starts the server from that copy. An `adb` installed on the system
 is never used, and the download is kept, so it happens once. Only `ADB`
 replaces the downloaded program, with one you choose.
 
+While the tools download, `ret` shows a terminal progress bar with
+the amount received and the percentage when the download size is known,
+or a spinner when it is unknown, followed by the extraction status. `ret-ui`
+shows the same progress in a banner, even when the logs are hidden, and shows
+an error there if the download or installation fails.
+
 Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
 [adb server]: https://developer.android.com/studio/command-line/adb.html
