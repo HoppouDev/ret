@@ -22,12 +22,22 @@ enum Event {
     /// Whether the client of a device was started
     Started(String, bool),
     /// A relay server stopped, with its error unless it was asked to
-    RelayExited { id: u64, error: Option<String> },
+    RelayExited {
+        id: u64,
+        error: Option<String>,
+    },
+    Interrupted,
 }
 
 /// Start the client on every device adb detects, and run the relay server while one runs, forever
 pub fn autorun(options: StartOptions) -> Result<(), String> {
+    let _adb_server = ret_adb::ServerGuard::new();
     let (events, receiver) = mpsc::channel();
+    let interrupted = events.clone();
+    ctrlc::set_handler(move || {
+        let _ = interrupted.send(Event::Interrupted);
+    })
+    .map_err(|err| format!("cannot install the Ctrl+C handler: {err}"))?;
     watch_devices(events.clone());
 
     let adb = Adb::new(None);
@@ -37,6 +47,13 @@ pub fn autorun(options: StartOptions) -> Result<(), String> {
     let mut next_check = Instant::now() + CHECK_INTERVAL;
     loop {
         match receiver.recv_timeout(next_check.saturating_duration_since(Instant::now())) {
+            Ok(Event::Interrupted) => {
+                info!("Interrupted");
+                if let Some(server) = relay {
+                    server.stop();
+                }
+                return Ok(());
+            }
             Ok(Event::Devices(available)) => {
                 for serial in clients.update(available) {
                     spawn_start(&adb, serial, options.clone(), events.clone());

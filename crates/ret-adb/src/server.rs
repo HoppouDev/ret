@@ -1,4 +1,4 @@
-//! Lifetime of the ADB server started by the desktop window.
+//! Lifetime of the ADB server owned by a command or desktop window.
 
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
@@ -22,7 +22,7 @@ static STATE: Mutex<State> = Mutex::new(State {
 
 /// Stops the server started by this process when the last guard is dropped.
 ///
-/// Create this before starting ADB work and keep it alive until the window closes.
+/// Create this before starting ADB work and keep it alive until the command or window exits.
 /// A server which was already running is reused and left alone. Background work
 /// cannot start another server once the last guard has been dropped.
 #[must_use]
@@ -139,7 +139,7 @@ pub(crate) fn start_server() -> io::Result<()> {
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .check_open()?;
-    // Downloading can block, so closing the window must not wait for it.
+    // Downloading can block, so shutdown must not wait for it.
     let mut command = Command::new(adb_program()?);
     #[cfg(windows)]
     command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW avoids a console flash.

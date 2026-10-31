@@ -1,6 +1,5 @@
 # ret for developers
 
-
 ## Getting started
 
 ### Requirements
@@ -17,34 +16,36 @@ sh rustup-init
 [Android SDK]: https://developer.android.com/studio/index.html
 [Rust]: https://www.rust-lang.org/
 
-
 ### Build
 
 #### Everything
 
 If `gradle` is installed on your computer:
 
-    gradle build
+```text
+gradle build
+```
 
 Otherwise, you can call the [gradle wrapper]:
 
-    ./gradlew build
+```text
+./gradlew build
+```
 
 This will build the Android application and the relay server, both in debug
 and release versions.
 
 [gradle wrapper]: https://docs.gradle.org/current/userguide/gradle_wrapper.html
 
-
 #### Specific parts
 
 Several _gradle_ tasks are exposed in the root project. For instance:
 
- - `debugAll` and `releaseAll` build the Android application and the relay
-   server
- - `releaseWindows` builds them, with the relay server cross-compiled to
-   Windows (see below)
- - `checkAll` runs their checks and tests
+- `debugAll` and `releaseAll` build the Android application and the relay
+  server
+- `releaseWindows` builds them, with the relay server cross-compiled to
+  Windows (see below)
+- `checkAll` runs their checks and tests
 
 Even if the relay server build tasks are exposed through `gradle` (which wraps
 calls to `cargo`), it is often more convenient to use `cargo` directly.
@@ -55,27 +56,31 @@ For instance, to build a release version of the relay server:
 
 It will generate the binary in `target/release/ret`.
 
-
 #### Cross-compile the relay server from Linux to Windows
 
 To build `ret.exe` from Linux, install the cross-compile toolchain (on
 Debian):
 
-    sudo apt install gcc-mingw-w64-x86-64
-    rustup target add x86_64-pc-windows-gnu
+```text
+sudo apt install gcc-mingw-w64-x86-64
+rustup target add x86_64-pc-windows-gnu
+```
 
 Add the following lines to `~/.cargo/config`:
 
-    [target.x86_64-pc-windows-gnu]
-    linker = "x86_64-w64-mingw32-gcc"
-    ar = "x86_64-w64-mingw32-gcc-ar"
+```text
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+ar = "x86_64-w64-mingw32-gcc-ar"
+```
 
 Then build:
 
-    cargo build --release --target=x86_64-pc-windows-gnu
+```text
+cargo build --release --target=x86_64-pc-windows-gnu
+```
 
 It will generate `target/x86_64-pc-windows-gnu/release/ret.exe`.
-
 
 ### Android Studio
 
@@ -84,14 +89,14 @@ To import the project in _Android Studio_: File → Import…
 From there, you can develop on the Android application. You can also execute
 any _gradle_ tasks, and run the tests with visual results.
 
-
 ### Git hooks
 
 Commits are checked by Git hooks managed by [prek]:
- - the relay server must be formatted (`cargo fmt`) and free of [clippy]
-   warnings
- - commit messages must follow [Conventional Commits], checked by
-   [cocogitto]
+
+- the relay server must be formatted (`cargo fmt`) and free of [clippy]
+  warnings
+- commit messages must follow [Conventional Commits], checked by
+  [cocogitto]
 
 Install `prek` and `cocogitto` (for example `scoop install prek cocogitto` on
 Windows, or `cargo install prek cocogitto`), then enable the hooks once in your
@@ -101,7 +106,9 @@ clone:
 
 To run the format and lint checks on the whole repository:
 
-    prek run --all-files
+```text
+prek run --all-files
+```
 
 The current version and the next one can be printed with `cog get-version` and
 `cog bump --auto --dry-run`.
@@ -138,21 +145,22 @@ The Android release job locates `sdkmanager` and `apksigner` under
 `ANDROID_HOME`, without requiring either command on `PATH`.
 
 The workflow:
- - exports a versioned source archive with materialized Git LFS files
- - builds and verifies the signed Android application
- - builds and tests native x86_64 and ARM64 Windows programs, compiles each
-   installer, then installs, checks and uninstalls it on the matching runner
- - builds and tests the glibc programs on native x86_64 and ARM64 runners in
-   a pinned Rust 1.98.0 Bullseye image, then packages tarballs, debs, RPMs
-   and AppImages for each architecture
- - builds and tests the Arch x86_64 and Alpine x86_64/ARM64 packages as
-   unprivileged users in separate containers
- - installs the deb, Arch and Alpine packages and checks their CLI versions
- - builds and tests macOS Intel and Apple Silicon programs, creates ad-hoc
-   signed app bundles and disk images, and exercises the packaged CLIs
- - checks the complete asset list, native recipe checksums and portable
-   archives' APKs and executable architectures, writes `SHA256SUMS.txt`,
-   uploads everything to a draft release, then publishes it
+
+- exports a versioned source archive with materialized Git LFS files
+- builds and verifies the signed Android application
+- builds and tests native x86_64 and ARM64 Windows programs, compiles each
+  installer, then installs, checks and uninstalls it on the matching runner
+- builds and tests the glibc programs on native x86_64 and ARM64 runners in
+  a pinned Rust 1.98.0 Bullseye image, then packages tarballs, debs, RPMs
+  and AppImages for each architecture
+- builds and tests the Arch x86_64 and Alpine x86_64/ARM64 packages as
+  unprivileged users in separate containers
+- installs the deb, Arch and Alpine packages and checks their CLI versions
+- builds and tests macOS Intel and Apple Silicon programs, creates ad-hoc
+  signed app bundles and disk images, and exercises the packaged CLIs
+- checks the complete asset list, native recipe checksums and portable
+  archives' APKs and executable architectures, writes `SHA256SUMS.txt`,
+  uploads everything to a draft release, then publishes it
 
 Only the final job has repository write permission. Release builds do not
 restore build caches from other workflows. The Linux baseline is glibc 2.31,
@@ -264,10 +272,11 @@ It uses the Gradle wrapper unless `GRADLE` names another executable.
 Set `APKSIGNER` to the SDK's executable if it is not on `PATH` and cannot be
 found through `ANDROID_HOME` or `ANDROID_SDK_ROOT`. The script verifies the APK
 signature and writes:
- - `dist/ret-<version>-linux-x86_64.tar.gz`
- - `dist/ret-<version>-windows-x86_64.zip`
- - `dist/ret-v<version>.apk`
- - `dist/SHA256SUMS-<version>.txt`
+
+- `dist/ret-<version>-linux-x86_64.tar.gz`
+- `dist/ret-<version>-windows-x86_64.zip`
+- `dist/ret-v<version>.apk`
+- `dist/SHA256SUMS-<version>.txt`
 
 Existing outputs cause a failure rather than replacement. Other `dist` files
 are retained. This local command does not build native Linux packages or the
@@ -281,10 +290,11 @@ the `dist` directory.
 
 The release workflow signs the APK with the keystore stored in these repository
 secrets:
- - `RELEASE_KEYSTORE_BASE64`: the keystore file, base64-encoded
- - `RELEASE_STORE_PASSWORD`: the keystore password
- - `RELEASE_KEY_ALIAS`: the alias of the signing key
- - `RELEASE_KEY_PASSWORD`: the password of the signing key
+
+- `RELEASE_KEYSTORE_BASE64`: the keystore file, base64-encoded
+- `RELEASE_STORE_PASSWORD`: the keystore password
+- `RELEASE_KEY_ALIAS`: the alias of the signing key
+- `RELEASE_KEY_PASSWORD`: the password of the signing key
 
 Keep the same key for every release. Android refuses to upgrade an app signed
 with a different key, so users would have to uninstall it first.
@@ -298,15 +308,15 @@ To sign a local release build, set `RELEASE_STORE_FILE`,
 [Conventional Commits]: https://www.conventionalcommits.org
 [cocogitto]: https://docs.cocogitto.io
 
-
 ## Overview
 
 The client registers itself as a [VPN], in order to intercept the whole device
 network traffic.
 
 It exchanges raw [IPv4 packets] as `byte[]` with the device:
- - it receives packets from the Android applications or system;
- - it must forge response packets.
+
+- it receives packets from the Android applications or system;
+- it must forge response packets.
 
 The client (executed on the Android device) just maintains a TCP connection to
 the relay server, and sends the raw packets to it.
@@ -314,7 +324,9 @@ the relay server, and sends the raw packets to it.
 This TCP connection is established over _adb_, after we started a reverse
 port redirection:
 
-    adb reverse localabstract:ret tcp:31416
+```text
+adb reverse localabstract:ret tcp:31416
+```
 
 This means that every connection initiated to `localhost:31416` from the device
 will be redirected to the port `31416` on the computer, on which the relay
@@ -338,7 +350,6 @@ communicates with the clients (the private peers), by using a very specific
 [berkeley]: https://en.wikipedia.org/wiki/Berkeley_sockets
 [NAT]: https://en.wikipedia.org/wiki/Network_address_translation
 [portNAT]: https://en.wikipedia.org/wiki/Network_address_translation#Methods_of_translation
-
 
 ## Client
 
@@ -378,7 +389,6 @@ of [`IPPacketOutputStream`].
 [`PersistentRelayTunnel`]: app/src/main/kotlin/dev/hoppou/ret/PersistentRelayTunnel.kt
 [`IPPacketOutputStream`]: app/src/main/kotlin/dev/hoppou/ret/IPPacketOutputStream.kt
 
-
 ## Relay server
 
 The relay server is a _Rust_ library located in
@@ -398,15 +408,15 @@ handle packets.
 [asynchronous I/O]: https://en.wikipedia.org/wiki/Asynchronous_I/O
 [tokio]: https://docs.rs/tokio/1/tokio/
 
-
 ### Event loop
 
 [`Relay`][rust/relay] creates a single-threaded _tokio_ runtime, on which each
 socket is handled by its own asynchronous task:
- - the [_tunnel server_][rust/tunnel-server] accepts the clients on port 31416
-   and spawns a task for every accepted [_client_][rust/client]
- - each _TCP connection_ and each _UDP connection_ to the network runs in its
-   own task
+
+- the [_tunnel server_][rust/tunnel-server] accepts the clients on port 31416
+  and spawns a task for every accepted [_client_][rust/client]
+- each _TCP connection_ and each _UDP connection_ to the network runs in its
+  own task
 
 Tasks exchange packets through bounded channels ([`mpsc`][tokio/mpsc]).
 
@@ -431,7 +441,6 @@ by a client succeeds whenever a port redirection is enabled (typically through
 `adb reverse`), even if the relay server is not listening. In that case, the
 first _read_ will fail.
 
-
 ### Packets
 
 A type representing an _IPv4 packet_ ([`Ipv4Packet`][rust/ipv4-packet])
@@ -452,26 +461,26 @@ the raw packet buffer. Therefore, _header data_ classes (`*HeaderData`) are used
 to store the fields, and lifetime-bound views (`*Header<'a>` and
 `*HeaderMut<'a>`) reference both the raw array and the _header data_:
 
- - [`packet::ipv4_header`][rust/ipv4-header]:
-   - data: `Ipv4HeaderData`
-   - view: `Ipv4Header<'a>`
-   - mutable view: `Ipv4HeaderMut<'a>`
- - [`packet::transport::tcp`][rust/tcp-header]:
-   - data: `TcpHeaderData`
-   - view: `TcpHeader<'a>`
-   - mutable view: `TcpHeaderMut<'a>`
- - [`packet::transport::udp`][rust/udp-header]:
-   - data: `UdpHeaderData`
-   - view: `UdpHeader<'a>`
-   - mutable view: `UdpHeaderMut<'a>`
+- [`packet::ipv4_header`][rust/ipv4-header]:
+  - data: `Ipv4HeaderData`
+  - view: `Ipv4Header<'a>`
+  - mutable view: `Ipv4HeaderMut<'a>`
+- [`packet::transport::tcp`][rust/tcp-header]:
+  - data: `TcpHeaderData`
+  - view: `TcpHeader<'a>`
+  - mutable view: `TcpHeaderMut<'a>`
+- [`packet::transport::udp`][rust/udp-header]:
+  - data: `UdpHeaderData`
+  - view: `UdpHeader<'a>`
+  - mutable view: `UdpHeaderMut<'a>`
 
 In addition, we use [enums][rust-enums] for _transport headers_ to statically
 dispatch calls to _UDP_ and _TCP_ header classes:
 
- - [`packet::transport`][rust/transport-header]:
-   - data: `TransportHeaderData`
-   - view: `TransportHeader<'a>`
-   - mutable view: `TransportHeaderMut<'a>`
+- [`packet::transport`][rust/transport-header]:
+  - data: `TransportHeaderData`
+  - view: `TransportHeader<'a>`
+  - mutable view: `TransportHeaderMut<'a>`
 
 [rust/ipv4-header]: crates/ret-relay/src/packet/ipv4\_header.rs
 [rust/tcp-header]: crates/ret-relay/src/packet/transport/tcp.rs
@@ -479,18 +488,17 @@ dispatch calls to _UDP_ and _TCP_ header classes:
 [rust/transport-header]: crates/ret-relay/src/packet/transport/mod.rs
 [rust-enums]: https://doc.rust-lang.org/book/first-edition/enums.html
 
-
 ### Router
 
 Each _client_ holds a _router_ ([`Router`][rust/router]), responsible for
 sending the packets to the right _connection_, identified by these 5 properties
 available in the IP and transport headers:
 
- - protocol
- - source address
- - source port
- - destination address
- - destination port
+- protocol
+- source address
+- source port
+- destination address
+- destination port
 
 These identifiers are stored in a _connection id_
 ([`ConnectionId`][rust/connection]), used as a key to find or create the
@@ -501,7 +509,6 @@ this channel is full, the packet is dropped (see below why this is safe).
 
 [rust/router]: crates/ret-relay/src/server/router.rs
 [rust/connection]: crates/ret-relay/src/connection/id.rs
-
 
 ### Connections
 
@@ -531,7 +538,6 @@ A _packetizer_ ([`Packetizer`][rust/packetizer]) converts from level 5 to level
 
 [rust/packetizer]: crates/ret-relay/src/packet/packetizer.rs
 
-
 #### UDP connection
 
 When the first packet for a specific UDP connection is received from the device,
@@ -546,7 +552,6 @@ preserved for UDP).
 Since UDP is not a connected protocol, a UDP connection is never "closed".
 Therefore, each UDP connection task terminates itself after 2 minutes without
 any packet.
-
 
 #### TCP connection
 
@@ -572,11 +577,11 @@ to recover the connection.
 As far as I know, there are only two possible causes of packet loss for which we
 are responsible:
 
- 1. When **our buffers are full**, we won't resize them indefinitely, so we have to
+1. When **our buffers are full**, we won't resize them indefinitely, so we have to
 drop packets. Typically, this may happen if the data from the network is
 received at a higher rate than that they can be sent to the device.
 
- 2. When **a raw packet is considered invalid** by the device, it is rejected.
+2. When **a raw packet is considered invalid** by the device, it is rejected.
 This may happen for example if the checksum is invalid or if the TCP sequence
 number is [out-of-the-window][flow control].
 
@@ -593,7 +598,6 @@ To prevent retrieving a packet while our buffers are full, a `TcpConnection`
 reads from the network only when its _outbox_ is empty. When the client channel
 is full, the packet just read waits in the _outbox_, and the connection stops
 reading until the channel has room for it.
-
 
 ## Hack
 

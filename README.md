@@ -17,7 +17,6 @@ support [IPv6] (yet?).
 [IPv4]: https://en.wikipedia.org/wiki/IPv4
 [IPv6]: https://en.wikipedia.org/wiki/IPv6
 
-
 ## Requirements
 
 The Android application requires at least API 21 (Android 5.0).
@@ -46,10 +45,10 @@ or a spinner when it is unknown, followed by the extraction status. `ret-ui`
 shows the same progress in a banner, even when the logs are hidden, and shows
 an error there if the download or installation fails.
 
-`ret-ui` stops the ADB server it started when its window closes. If an ADB
-server was already running, the window reuses it and leaves it running on
-exit. CLI commands leave the server running so commands such as `ret start`
-can keep the device connected after returning.
+`ret-ui` and `ret autorun` stop the ADB server they started when the window
+closes or you press Ctrl+C. If an ADB server was already running, they reuse
+it and leave it running on exit. Other CLI commands leave the server running
+so commands such as `ret start` can keep the device connected after returning.
 
 Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
@@ -58,16 +57,16 @@ Make sure you [enabled adb debugging][enable-adb] on your device(s).
 [enable-adb]: https://developer.android.com/studio/command-line/adb.html#Enabling
 [platform-tools]: https://developer.android.com/tools/releases/platform-tools
 
-
 ## Get the app
 
 Download the appropriate files from the [latest release][latest].
 
 The Linux tarball (`ret-<version>-linux-<arch>.tar.gz`) contains:
- - `ret.apk`
- - `ret`
- - `ret-ui`
- - `LICENSE`
+
+- `ret.apk`
+- `ret`
+- `ret-ui`
+- `LICENSE`
 
 On Windows, run `ret-setup-<version>-windows-<arch>.exe`, choosing `x86_64`
 for Intel/AMD or `arm64` for Windows on ARM. The installer puts `ret` and
@@ -136,10 +135,11 @@ This checks the files you downloaded, not the authenticity of their publisher.
 The ret app is a different Android app from the Gnirehtet one, so `ret` does
 not upgrade or control it. Uninstall the old app once:
 
-    adb uninstall com.genymobile.gnirehtet
+```text
+adb uninstall com.genymobile.gnirehtet
+```
 
 The first `ret run` installs the new app and asks for the VPN permission again.
-
 
 ## Run (simple)
 
@@ -150,7 +150,9 @@ only.
 
 If you want to activate reverse tethering for exactly one device, just execute:
 
-    ./ret run
+```text
+./ret run
+```
 
 Reverse tethering remains active until you press _Ctrl+C_.
 
@@ -169,12 +171,13 @@ A "key" logo appears in the status bar whenever _ret_ is active:
 Alternatively, you can enable reverse tethering for all connected devices
 (present and future) by calling:
 
-    ./ret autorun
+```text
+./ret autorun
+```
 
 The relay server then runs only while a client runs: it starts with the first
 client and stops when the last one stops, for example when its device is
 unplugged or the client is stopped from the device.
-
 
 ## Run
 
@@ -183,31 +186,40 @@ tether several devices simultaneously).
 
 Start the relay server and keep it open:
 
-    ./ret relay
+```text
+./ret relay
+```
 
 Install the `apk` on your Android device:
 
-    ./ret install [serial]
+```text
+./ret install [serial]
+```
 
 In another terminal, for each client, execute:
 
-    ./ret start [serial]
+```text
+./ret start [serial]
+```
 
 To stop a client:
 
-    ./ret stop [serial]
+```text
+./ret stop [serial]
+```
 
 To reset the tunnel (useful to get the connection back when a device is
 unplugged and plugged back while ret is active):
 
-    ./ret tunnel [serial]
+```text
+./ret tunnel [serial]
+```
 
 The _serial_ parameter is required only if `adb devices` outputs more than one
 device.
 
 For advanced options, run `./ret --help`, or `./ret help <command>` for the
 details of one command (for example `./ret help start`).
-
 
 ## Graphical interface
 
@@ -222,10 +234,11 @@ found running, and stops once no client runs anymore. The header shows its
 state.
 
 The gear button opens the settings, grouped by category:
- - Connection: the port of the relay server, the DNS servers and the routes
- - Devices: auto-start, which starts the client on every device as soon as it
-   is connected (on by default)
- - Appearance: the theme, light, dark or the same as the system
+
+- Connection: the port of the relay server, the DNS servers and the routes
+- Devices: auto-start, which starts the client on every device as soon as it
+  is connected (on by default)
+- Appearance: the theme, light, dark or the same as the system
 
 It is in the release archives next to `ret`. Start it with `./ret-ui` (on
 Windows, double-click on `ret-ui.exe`), with `ret.apk` in the same directory,
@@ -235,8 +248,9 @@ It reads the same [environment variables](#environment-variables) as `ret`.
 
 The window remembers its settings in `config.toml`, in a `ret` directory of the
 user configuration directory:
- - Linux: `~/.config/ret/config.toml` (or `$XDG_CONFIG_HOME/ret/config.toml`)
- - Windows: `%APPDATA%\ret\config.toml`
+
+- Linux: `~/.config/ret/config.toml` (or `$XDG_CONFIG_HOME/ret/config.toml`)
+- Windows: `%APPDATA%\ret\config.toml`
 
 The window creates it with the default settings when it starts, and saves it as
 soon as a setting changes. You can also edit it by hand, every key is optional:
@@ -256,10 +270,10 @@ starts with the default settings, logs the error and leaves the file untouched.
 
 The window also saves its logs, one file per day, keeping the last 7, in a
 `ret/logs` directory of the user data directory:
- - Linux: `~/.local/share/ret/logs` (or `$XDG_DATA_HOME/ret/logs`)
- - Windows: `%APPDATA%\ret\logs`
- - macOS: `~/Library/Application Support/ret/logs`
 
+- Linux: `~/.local/share/ret/logs` (or `$XDG_DATA_HOME/ret/logs`)
+- Windows: `%APPDATA%\ret\logs`
+- macOS: `~/Library/Application Support/ret/logs`
 
 ## Run manually
 
@@ -268,23 +282,30 @@ lower-level commands. You can call them manually instead.
 
 To start the relay server:
 
-    ./ret relay
+```text
+./ret relay
+```
 
 To install the apk:
 
-    adb install -r ret.apk
+```text
+adb install -r ret.apk
+```
 
 To start a client:
 
-    adb reverse localabstract:ret tcp:31416
-    adb shell am start -a dev.hoppou.ret.START \
-        -n dev.hoppou.ret/.RetActivity
+```text
+adb reverse localabstract:ret tcp:31416
+adb shell am start -a dev.hoppou.ret.START \
+    -n dev.hoppou.ret/.RetActivity
+```
 
 To stop a client:
 
-    adb shell am start -a dev.hoppou.ret.STOP \
-        -n dev.hoppou.ret/.RetActivity
-
+```text
+adb shell am start -a dev.hoppou.ret.STOP \
+    -n dev.hoppou.ret/.RetActivity
+```
 
 ## Environment variables
 
@@ -313,16 +334,16 @@ RUST_LOG=debug ./ret run
 It also accepts per-component levels, such as
 `RUST_LOG=info,TcpConnection=debug`.
 
-
 ## Why _ret_?
 
 It is short for _reverse tethering_. The upstream name, _gnirehtet_, is
 _tethering_ reversed:
 
-    rev <<< tethering
+```text
+rev <<< tethering
+```
 
 (in _Bash_)
-
 
 ## Developers
 
@@ -330,23 +351,23 @@ Read the [developers page].
 
 [developers page]: DEVELOP.md
 
-
 ## Licence
 
-    Copyright (C) 2017 Genymobile
+```text
+Copyright (C) 2017 Genymobile
 
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-        http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
 
 ## Articles about Gnirehtet
 
