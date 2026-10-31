@@ -4,6 +4,8 @@ mod adb;
 pub mod client;
 pub mod download;
 pub mod info;
+mod server;
 pub mod track;
 
 pub use adb::{Adb, Error};
+pub use server::ServerGuard;

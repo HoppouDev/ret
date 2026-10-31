@@ -19,6 +19,7 @@ const ICON: &[u8] = include_bytes!("../../../assets/ret.ico");
 fn main() -> iced::Result {
     // writes the last lines to the log file once the window closes
     let _log_file = logs::init();
+    let _adb_server = ret_adb::ServerGuard::new();
     iced::application(Ret::boot, Ret::update, view::view)
         .title("Ret")
         .theme(Ret::theme)

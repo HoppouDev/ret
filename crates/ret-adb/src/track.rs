@@ -10,7 +10,7 @@ use std::thread;
 use std::time::Duration;
 use tracing::{error, info};
 
-use crate::adb::start_server;
+use crate::server::start_server;
 
 const SERVER_PORT: u16 = 5037;
 

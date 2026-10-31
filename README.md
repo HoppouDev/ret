@@ -41,6 +41,11 @@ or a spinner when it is unknown, followed by the extraction status. `ret-ui`
 shows the same progress in a banner, even when the logs are hidden, and shows
 an error there if the download or installation fails.
 
+`ret-ui` stops the ADB server it started when its window closes. If an ADB
+server was already running, the window reuses it and leaves it running on
+exit. CLI commands leave the server running so commands such as `ret start`
+can keep the device connected after returning.
+
 Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
 [adb server]: https://developer.android.com/studio/command-line/adb.html

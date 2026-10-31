@@ -10,16 +10,13 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::Path;
-use std::path::PathBuf;
-use std::process::Command;
 use std::sync::mpsc;
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 use adb_client::server_device::ADBServerDevice;
 use adb_client::{ADBDeviceExt, RustADBError};
 use tracing::debug;
+
+use crate::server::start_server;
 
 /// A device command that failed
 #[derive(Debug)]
@@ -259,42 +256,4 @@ impl io::Write for Forward {
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
-}
-
-/// The `CREATE_NO_WINDOW` flag of `CreateProcessW`, see
-/// <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw>
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-/// Start the adb server, with the `adb` program ret downloaded or the one given in `ADB`
-///
-/// The adb server is the one part of adb which the `adb_client` library cannot create: it
-/// talks to a running server only.
-pub(crate) fn start_server() -> io::Result<()> {
-    let mut command = Command::new(adb_program()?);
-    command.arg("start-server");
-    // `adb` is a console program: a graphical parent without this flag flashes a terminal
-    // window on every start, through which the daemon is started too
-    #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW);
-    let status = command.status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::other(format!(
-            "`adb start-server` failed ({status})"
-        )))
-    }
-}
-
-/// The `adb` program which starts the server
-///
-/// The `adb` installed on the system is never run: the program comes from the platform tools,
-/// which the `download` module puts into the data directory of the user. Only `ADB` replaces
-/// it, with a program chosen by the user.
-fn adb_program() -> io::Result<PathBuf> {
-    if let Some(program) = std::env::var_os("ADB") {
-        return Ok(program.into());
-    }
-    crate::download::adb()
 }
