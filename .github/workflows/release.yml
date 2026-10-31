@@ -80,7 +80,7 @@ jobs:
           trap 'rm -f "$keystore"' EXIT
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore"
           ./gradlew --no-daemon :app:check :app:assembleRelease -PRELEASE_STORE_FILE="$keystore"
-          sdkmanager "build-tools;36.0.0"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
             app/build/outputs/apk/release/ret-release.apk
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

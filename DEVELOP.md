@@ -134,6 +134,9 @@ Pushing a `v*` tag runs the Release workflow. Running it manually with
 Both modes need the Android signing secrets listed below. Build-only runs
 leave a `release-assets` Actions artifact for inspection.
 
+The Android release job locates `sdkmanager` and `apksigner` under
+`ANDROID_HOME`, without requiring either command on `PATH`.
+
 The workflow:
  - exports a versioned source archive with materialized Git LFS files
  - builds and verifies the signed Android application
