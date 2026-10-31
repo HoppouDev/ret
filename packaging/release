@@ -1,41 +1,80 @@
 #!/bin/bash
-# Make a ret release.
-#
-# Put your keystore properties into ~/.gradle/gradle.properties
-# (check app/build.gradle.kts)
+# Build portable Linux and Windows archives and a signed Android APK from a release tag.
+# Configure Android signing in ~/.gradle/gradle.properties.
+set -euo pipefail
 
-set -e # fail on error
-cd "$(dirname "$0")/.." # the paths of the project are relative to its root
-GRADLE=${GRADLE:-./gradlew} # set value ./gradlew if not set
-DIST=dist
-TARGET_DIR_RUST_LINUX=ret-linux64
-TARGET_DIR_RUST_WIN=ret-win64
+fail() {
+    printf 'release: %s\n' "$*" >&2
+    exit 1
+}
 
-version=$(git describe --tags --always)
-TARGET_RUST_LINUX="$TARGET_DIR_RUST_LINUX-$version".zip
-TARGET_RUST_WIN="$TARGET_DIR_RUST_WIN-$version".zip
+[[ $# == 0 ]] || fail 'Usage: packaging/release'
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+root=$PWD
+GRADLE=${GRADLE:-./gradlew}
 
+for tool in git python3 cargo rustup java tar zip sha256sum mktemp mkdir cp ln rm uname sort x86_64-w64-mingw32-gcc; do
+    command -v "$tool" >/dev/null || fail "Required command not found: $tool"
+done
+command -v "$GRADLE" >/dev/null || fail "Gradle executable not found: $GRADLE"
+[[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || fail 'Run this script on x86_64 Linux'
+[[ -z $(git status --porcelain) ]] || fail 'Commit or stash local changes before making a release'
+tag=$(git describe --tags --exact-match --match 'v[0-9]*' HEAD) || fail 'HEAD must have an exact release tag'
+version=$(python3 packaging/check-release.py "$tag")
+
+installed_targets=$(rustup target list --installed)
+for target in x86_64-unknown-linux-gnu x86_64-pc-windows-gnu; do
+    [[ $'\n'"$installed_targets"$'\n' == *$'\n'"$target"$'\n'* ]] || fail "Install the Rust target with: rustup target add $target"
+done
+
+if [[ -z ${APKSIGNER:-} ]]; then
+    if command -v apksigner >/dev/null; then
+        APKSIGNER=$(command -v apksigner)
+    else
+        sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
+        [[ -n $sdk ]] || fail 'Set APKSIGNER or ANDROID_HOME to locate Android apksigner'
+        mapfile -t signers < <(printf '%s\n' "$sdk"/build-tools/*/apksigner | sort -V)
+        APKSIGNER=${signers[${#signers[@]}-1]}
+    fi
+fi
+command -v "$APKSIGNER" >/dev/null || fail "Android apksigner executable not found: $APKSIGNER"
+
+outputs=("ret-$version-linux-x86_64.tar.gz" "ret-$version-windows-x86_64.zip" "ret-v$version.apk" "SHA256SUMS-$version.txt")
+[[ ! -L dist ]] || fail 'dist must not be a symbolic link'
+[[ ! -e dist || -d dist ]] || fail 'dist is not a directory'
+for output in "${outputs[@]}"; do
+    [[ ! -e dist/$output && ! -L dist/$output ]] || fail "Output already exists: dist/$output"
+done
+
+# Explicit targets keep Cargo configuration and environment overrides out of the output paths.
+export CARGO_TARGET_DIR="$root/target"
+export CARGO_BUILD_TARGET=x86_64-unknown-linux-gnu
+# A stale signed APK must not survive a build without signing credentials.
+"$GRADLE" :app:clean
 "$GRADLE" checkAll releaseAll releaseWindows
+apk=app/build/outputs/apk/release/ret-release.apk
+[[ -f $apk ]] || fail 'The Android build did not produce a signed ret-release.apk'
+"$APKSIGNER" verify --verbose "$apk"
 
-rm -rf "$DIST"
-
-for dir in "$TARGET_DIR_RUST_LINUX" "$TARGET_DIR_RUST_WIN"
-do
-    mkdir -p "$DIST/$dir"
-    cp app/build/outputs/apk/release/ret-release.apk "$DIST/$dir"/ret.apk
+mkdir -p -- dist
+staging=$(mktemp -d "$root/dist/.release-$version.XXXXXXXX")
+trap 'rm -rf -- "$staging"' EXIT
+mkdir -- "$staging/ret-linux-x86_64" "$staging/ret-windows-x86_64"
+cp -- target/x86_64-unknown-linux-gnu/release/ret target/x86_64-unknown-linux-gnu/release/ret-ui "$staging/ret-linux-x86_64/"
+cp -- target/x86_64-pc-windows-gnu/release/ret.exe target/x86_64-pc-windows-gnu/release/ret-ui.exe packaging/windows/ret-run.cmd "$staging/ret-windows-x86_64/"
+for directory in ret-linux-x86_64 ret-windows-x86_64; do
+    cp -- "$apk" "$staging/$directory/ret.apk"
+    cp -- LICENSE "$staging/$directory/"
 done
-
-for binary in ret ret-ui
-do
-    cp target/release/$binary "$DIST/$TARGET_DIR_RUST_LINUX"/
-    strip "$DIST/$TARGET_DIR_RUST_LINUX"/$binary  # remove symbols for smaller binary
+cp -- "$apk" "$staging/ret-v$version.apk"
+tar -czf "$staging/ret-$version-linux-x86_64.tar.gz" -C "$staging" ret-linux-x86_64
+(
+    cd -- "$staging"
+    zip -qr "ret-$version-windows-x86_64.zip" ret-windows-x86_64
+    sha256sum "${outputs[@]:0:3}" > "SHA256SUMS-$version.txt"
+)
+# Hard links publish each completed file without overwriting a concurrent release.
+for output in "${outputs[@]}"; do
+    ln -- "$staging/$output" "$root/dist/$output"
 done
-cp target/x86_64-pc-windows-gnu/release/ret.exe \
-   target/x86_64-pc-windows-gnu/release/ret-ui.exe \
-   packaging/windows/ret-run.cmd \
-   "$DIST/$TARGET_DIR_RUST_WIN"/
-
-cd "$DIST"
-zip -r "$TARGET_RUST_LINUX" "$TARGET_DIR_RUST_LINUX"
-zip -r "$TARGET_RUST_WIN" "$TARGET_DIR_RUST_WIN"
-sha256sum "$TARGET_RUST_LINUX" "$TARGET_RUST_WIN" > SHA256SUMS.txt
+printf 'Release files written to %s/dist\n' "$root"

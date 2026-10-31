@@ -4,21 +4,24 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 description = "Reverse tethering for Android over adb"
-license = "MIT"
+license = "Apache-2.0"
+repository = "https://github.com/HoppouDev/ret"
 
 [package.metadata.deb]
 name = "ret"
 maintainer = "HoppouDev <me@hoppou.dev>"
 copyright = "2026 HoppouDev"
-depends = "libc6, libgcc-s1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libegl1"
+license-file = ["../../LICENSE", "0"]
+# Keep libgcc explicit when Rust's toolchain copy has no dpkg owner.
+depends = "$auto, libgcc-s1, libx11-6, libx11-xcb1, libxcursor1, libxi6, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libwayland-cursor0, libwayland-egl1, libegl1, libgl1"
 suggests = "mesa-vulkan-drivers"
 section = "net"
 revision = "1"
 triggers-file = "../../packaging/linux/debian/triggers"
 assets = [
-    ["../../target/release/ret", "usr/bin/", "755"],
-    ["../../target/release/ret-ui", "usr/bin/", "755"],
-    ["../../target/release/ret.apk", "usr/share/ret/", "644"],
+    ["target/release/ret", "usr/bin/", "755"],
+    ["target/release/ret-ui", "usr/bin/", "755"],
+    ["target/release/ret.apk", "usr/share/ret/", "644"],
     ["../../packaging/linux/ret.desktop", "usr/share/applications/", "644"],
     ["../../assets/ret.png", "usr/share/icons/hicolor/256x256/apps/", "644"],
 ]
@@ -26,8 +29,7 @@ assets = [
 [package.metadata.generate-rpm]
 name = "ret"
 release = "1"
-auto-req = "no"
-requires = { "libc.so.6()(64bit)" = "*", "libgcc_s.so.1()(64bit)" = "*", "libm.so.6()(64bit)" = "*", "libxkbcommon.so.0()(64bit)" = "*", "libxkbcommon-x11.so.0()(64bit)" = "*", "libwayland-client.so.0()(64bit)" = "*", "libEGL.so.1()(64bit)" = "*" }
+requires = { "libX11.so.6()(64bit)" = "*", "libX11-xcb.so.1()(64bit)" = "*", "libXcursor.so.1()(64bit)" = "*", "libXi.so.6()(64bit)" = "*", "libxkbcommon.so.0()(64bit)" = "*", "libxkbcommon-x11.so.0()(64bit)" = "*", "libwayland-client.so.0()(64bit)" = "*", "libwayland-cursor.so.0()(64bit)" = "*", "libwayland-egl.so.1()(64bit)" = "*", "libEGL.so.1()(64bit)" = "*", "libGL.so.1()(64bit)" = "*" }
 assets = [
     { source = "../../target/release/ret", dest = "/usr/bin/ret", mode = "755" },
     { source = "../../target/release/ret-ui", dest = "/usr/bin/ret-ui", mode = "755" },

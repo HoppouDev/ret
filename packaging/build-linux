@@ -1,0 +1,149 @@
+#!/bin/bash
+# Run inside the release container with read-only inputs and a separate output mount.
+set -euo pipefail
+
+kind=${1:?Usage: build-linux glibc|arch|alpine VERSION}
+version=${2:?Missing release version}
+[[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 2
+arch=$(uname -m)
+case "$arch" in
+  x86_64)
+    appimage_sha256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+    ;;
+  aarch64)
+    appimage_sha256=f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158
+    ;;
+  *)
+    echo "Unsupported Linux architecture: $arch" >&2
+    exit 2
+    ;;
+esac
+if [[ $kind == arch && $arch != x86_64 ]]; then
+  echo 'Arch Linux release packages require x86_64' >&2
+  exit 2
+fi
+inputs=${INPUT_DIR:-/inputs}
+output=${OUTPUT_DIR:-/out}
+mkdir -p "$output"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+cd "$work"
+tar -xzf "$inputs/ret-$version.tar.gz"
+cd "ret-$version"
+
+case "$kind" in
+  glibc)
+    # Bullseye preserves the glibc 2.31 baseline after its regular support ends.
+    printf '%s\n' \
+      'deb [check-valid-until=no] https://archive.debian.org/debian bullseye main' \
+      'deb [check-valid-until=no] https://archive.debian.org/debian-security bullseye-security main' \
+      > /etc/apt/sources.list
+    apt-get update
+    apt-get install -y --no-install-recommends dpkg-dev liblzma-dev \
+      libxkbcommon0 libxkbcommon-x11-0 libwayland-client0 libwayland-egl1 libegl1 libgl1 \
+      libx11-xcb1 libxcursor1 libxi6 libwayland-cursor0
+    cargo build --workspace --release --locked
+    cargo test --workspace --locked
+    test "$(target/release/ret --version)" = "ret $version"
+    install -m644 "$inputs/ret-release.apk" target/release/ret.apk
+
+    portable="ret-linux-$arch"
+    mkdir -p "$work/portable/$portable"
+    install -m755 target/release/ret target/release/ret-ui "$work/portable/$portable/"
+    install -m644 target/release/ret.apk LICENSE "$work/portable/$portable/"
+    tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+      -czf "$output/ret-$version-linux-$arch.tar.gz" -C "$work/portable" "$portable"
+    if [[ $arch == x86_64 ]]; then
+      cp target/release/ret.apk "$output/ret-v$version.apk"
+    fi
+
+    cargo install --locked --version 3.8.0 cargo-deb
+    cargo install --locked --version 0.21.1 cargo-generate-rpm
+    deb_arch=$(dpkg --print-architecture)
+    cargo deb -p ret-cli --no-build --no-strip --output "$output/ret_${version}-1_$deb_arch.deb"
+    dpkg --install "$output/ret_${version}-1_$deb_arch.deb"
+    test "$(ret --version)" = "ret $version"
+    (
+      cd crates/ret-cli
+      cargo generate-rpm --auto-req builtin -o "$output/ret-$version-1-fedora-opensuse.$arch.rpm"
+      cargo generate-rpm --auto-req builtin --set-metadata 'release = "1.el9"' \
+        -o "$output/ret-$version-1.el9-rhel9.$arch.rpm"
+    )
+
+    appdir="$work/AppDir"
+    install -Dm755 target/release/ret "$appdir/usr/bin/ret"
+    install -Dm755 target/release/ret-ui "$appdir/usr/bin/ret-ui"
+    install -Dm755 packaging/linux/appimage/AppRun "$appdir/AppRun"
+    install -Dm644 target/release/ret.apk "$appdir/usr/share/ret/ret.apk"
+    install -Dm644 LICENSE "$appdir/usr/share/licenses/ret/LICENSE"
+    install -Dm644 packaging/linux/ret.desktop "$appdir/usr/share/applications/ret.desktop"
+    install -Dm644 assets/ret.png "$appdir/usr/share/icons/hicolor/256x256/apps/ret.png"
+    cp packaging/linux/ret.desktop assets/ret.png "$appdir/"
+    ln -s ret.png "$appdir/.DirIcon"
+    tool="$work/appimagetool.AppImage"
+    curl --fail --location --silent --show-error \
+      "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-$arch.AppImage" \
+      -o "$tool"
+    echo "$appimage_sha256  $tool" | sha256sum -c -
+    chmod 755 "$tool"
+    # Reuse the verified tool's embedded runtime instead of downloading a mutable one.
+    runtime="$work/runtime"
+    offset=$("$tool" --appimage-offset)
+    dd if="$tool" of="$runtime" bs="$offset" count=1 status=none
+    ARCH="$arch" "$tool" --appimage-extract-and-run --runtime-file "$runtime" \
+      "$appdir" "$output/ret-$version-linux-$arch.AppImage"
+    ;;
+  arch)
+    pacman -Syu --needed --noconfirm rust pacman-contrib hicolor-icon-theme \
+      libxkbcommon libxkbcommon-x11 wayland libglvnd libx11 libxcursor libxi
+    useradd -m builder
+    install -d -o builder -g builder /home/builder/package /home/builder/sources
+    cp packaging/linux/arch/PKGBUILD /home/builder/package/
+    cp "$inputs/ret-$version.tar.gz" /home/builder/sources/
+    cp "$inputs/ret-release.apk" /home/builder/sources/ret.apk
+    chown -R builder:builder /home/builder
+    runuser -u builder -- bash -ec '
+      export SRCDEST=/home/builder/sources
+      cd /home/builder/package
+      updpkgsums
+      makepkg --cleanbuild --noconfirm
+      makepkg --printsrcinfo > .SRCINFO
+    '
+    cp "/home/builder/package/ret-$version-1-x86_64.pkg.tar.zst" \
+      "$output/ret-$version-1-archlinux-x86_64.pkg.tar.zst"
+    cp /home/builder/package/PKGBUILD "$output/ret-$version.PKGBUILD"
+    cp /home/builder/package/.SRCINFO "$output/ret-$version.SRCINFO"
+    pacman -U --noconfirm "$output/ret-$version-1-archlinux-x86_64.pkg.tar.zst"
+    test "$(ret --version)" = "ret $version"
+    ;;
+  alpine)
+    apk add --no-cache alpine-sdk cargo android-tools libx11 libxcursor libxi \
+      libxkbcommon libxkbcommon-x11 wayland-libs-client wayland-libs-cursor wayland-libs-egl \
+      mesa-egl mesa-gl hicolor-icon-theme
+    adduser -D builder
+    addgroup builder abuild
+    install -d -o builder -g builder /home/builder/package /home/builder/packages /var/cache/distfiles
+    cp packaging/linux/alpine/APKBUILD /home/builder/package/
+    cp "$inputs/ret-$version.tar.gz" /var/cache/distfiles/
+    cp "$inputs/ret-release.apk" /var/cache/distfiles/ret.apk
+    chown -R builder:builder /home/builder /var/cache/distfiles
+    # apk identifies signing keys by filename, so the published name must match.
+    key="ret-$version-alpine-$arch.rsa"
+    su builder -c "cd /home/builder/package && printf '%s\n' /home/builder/.abuild/$key | abuild-keygen -a && abuild checksum"
+    cp /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
+    # Dependencies are installed as root, only building and signing run as builder.
+    su builder -c 'cd /home/builder/package && abuild -d'
+    find /home/builder/packages -type f -name "ret-$version-r0.apk" \
+      -exec cp '{}' "$output/ret-$version-r0-alpine-$arch.apk" \;
+    if [[ $arch == x86_64 ]]; then
+      cp /home/builder/package/APKBUILD "$output/ret-$version.APKBUILD"
+    fi
+    cp "/home/builder/.abuild/$key.pub" "$output/$key.pub"
+    apk add --no-network "$output/ret-$version-r0-alpine-$arch.apk"
+    test "$(ret --version)" = "ret $version"
+    ;;
+  *)
+    echo "Unknown package kind: $kind" >&2
+    exit 2
+    ;;
+esac

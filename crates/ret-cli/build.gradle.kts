@@ -1,13 +1,13 @@
 tasks.register<Exec>("debug") {
-    commandLine("cargo", "build", "--workspace")
+    commandLine("cargo", "build", "--workspace", "--locked")
 }
 
 tasks.register<Exec>("release") {
-    commandLine("cargo", "build", "--workspace", "--release")
+    commandLine("cargo", "build", "--workspace", "--release", "--locked")
 }
 
 tasks.register<Exec>("test") {
-    commandLine("cargo", "test", "--workspace")
+    commandLine("cargo", "test", "--workspace", "--locked")
 }
 
 tasks.register<Exec>("install") {
@@ -41,5 +41,5 @@ tasks.register("build") {
 //   linker = "x86_64-w64-mingw32-gcc"
 //   ar = "x86_64-w64-mingw32-gcc-ar"
 tasks.register<Exec>("releaseCrossToWindows") {
-    commandLine("cargo", "build", "--workspace", "--release", "--target=x86_64-pc-windows-gnu")
+    commandLine("cargo", "build", "--workspace", "--release", "--locked", "--target=x86_64-pc-windows-gnu")
 }

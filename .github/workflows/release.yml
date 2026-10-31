@@ -4,99 +4,62 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# never cancel a release halfway through publishing it
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: build (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    needs: apk
-    strategy:
-      matrix:
-        include:
-          - name: linux
-            os: ubuntu-latest
-            exe: ""
-          - name: windows
-            os: windows-latest
-            exe: .exe
-    defaults:
-      run:
-        shell: bash
+  source:
+    name: validate and export source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      epoch: ${{ steps.version.outputs.epoch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # the installer embeds the icon of the repository, stored with git lfs
           lfs: true
           persist-credentials: false
-
-      # no build cache: a release must not restore artifacts written by other workflows
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
-
-      - run: cargo build --release --locked
-
-      # the command-line interface and the window, both at the root of the artifact
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: binary-${{ matrix.name }}
-          path: |
-            target/release/ret${{ matrix.exe }}
-            target/release/ret-ui${{ matrix.exe }}
-          if-no-files-found: error
-
-      # the installer embeds the Android application, built by the apk job
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: matrix.name == 'windows'
-        with:
-          name: apk
-          path: apk
-
-      - name: Build the Windows installer
-        if: matrix.name == 'windows'
+      - name: Validate release versions
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
-          choco install innosetup --no-progress
-          mkdir -p dist/ret-win64
-          cp target/release/ret.exe target/release/ret-ui.exe dist/ret-win64/
-          cp packaging/windows/ret-run.cmd dist/ret-win64/
-          cp apk/ret-release.apk dist/ret-win64/ret.apk
-          MSYS2_ARG_CONV_EXCL='*' "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
-            /DAppVersion="${GITHUB_REF_NAME#v}" \
-            "/DFilesDir=$(cygpath -w "$PWD/dist/ret-win64")" \
-            "/DOutputDir=$(cygpath -w "$PWD/dist")" \
-            packaging/windows/ret.iss
-
+          mkdir dist
+          args=()
+          if [[ -n "$RELEASE_TAG" ]]; then args+=("$RELEASE_TAG"); fi
+          version=$(python3 packaging/check-release.py "${args[@]}")
+          python3 packaging/check-release.py "${args[@]}" --source-archive "dist/ret-$version.tar.gz"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: matrix.name == 'windows'
         with:
-          name: installer-windows
-          path: dist/ret-setup-*.exe
+          name: source
+          path: dist/ret-*.tar.gz
           if-no-files-found: error
 
   apk:
-    name: build (android)
-    runs-on: ubuntu-latest
+    name: build and verify Android
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: "21"
-
-      # validates the wrapper jar, caching stays off for the same reason as the relay build
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-disabled: true
-
       - name: Build signed APK
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -104,149 +67,251 @@ jobs:
           ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
-            echo "::error::RELEASE_KEYSTORE_BASE64 is not set, refusing to publish an unsigned APK"
-            exit 1
-          fi
-          keystore="$RUNNER_TEMP/release.jks"
-          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$keystore"
-          ./gradlew --no-daemon :app:assembleRelease -PRELEASE_STORE_FILE="$keystore"
-          rm "$keystore"
-          build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
-          "$build_tools/apksigner" verify --print-certs app/build/outputs/apk/release/ret-release.apk
-
+          set -euo pipefail
+          for key in RELEASE_KEYSTORE_BASE64 ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD \
+            ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::$key is required to sign the release APK"
+              exit 1
+            fi
+          done
+          umask 077
+          keystore=$(mktemp "$RUNNER_TEMP/ret-signing-XXXXXX.jks")
+          trap 'rm -f "$keystore"' EXIT
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          ./gradlew --no-daemon :app:check :app:assembleRelease -PRELEASE_STORE_FILE="$keystore"
+          sdkmanager "build-tools;36.0.0"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
+            app/build/outputs/apk/release/ret-release.apk
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: apk
           path: app/build/outputs/apk/release/ret-release.apk
           if-no-files-found: error
 
-  release:
-    name: publish
-    needs: [build, apk]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # create the GitHub release and upload its assets
+  windows:
+    name: Windows (${{ matrix.arch }})
+    needs: [source, apk]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # cog reads the whole history and the tags to generate the changelog
-          fetch-depth: 0
-          # the packages embed the icon of the repository, stored with git lfs
+          lfs: true
           persist-credentials: false
-
-      - uses: cocogitto/cocogitto-action@52d0023b4396897f1815648e553db2ab8d782f3a # v4.2.0
-        with:
-          install-only: true
-
+      - run: rustup toolchain install 1.98.0 --profile minimal && rustup default 1.98.0
+      - name: Build and test native Windows programs
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+        run: |
+          rustup target add "$RUST_TARGET"
+          cargo build --workspace --release --locked --target "$RUST_TARGET"
+          cargo test --workspace --locked --target "$RUST_TARGET"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          path: bin
-
-      - name: Package
+          name: apk
+          path: apk
+      - name: Build installer
+        env:
+          VERSION: ${{ needs.source.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+          RUST_TARGET: ${{ matrix.target }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          mkdir -p target/release app/build/outputs/apk/release
+          iscc=''
+          for candidate in "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/c/Program Files/Inno Setup 6/ISCC.exe"; do
+            if [[ -f $candidate ]]; then iscc=$candidate; break; fi
+          done
+          [[ -n $iscc ]] || { echo 'Missing preinstalled Inno Setup compiler' >&2; exit 1; }
+          mkdir -p "dist/ret-windows-$ARCH"
+          cp "target/$RUST_TARGET/release/ret.exe" "target/$RUST_TARGET/release/ret-ui.exe" "dist/ret-windows-$ARCH/"
+          cp packaging/windows/ret-run.cmd LICENSE "dist/ret-windows-$ARCH/"
+          cp apk/ret-release.apk "dist/ret-windows-$ARCH/ret.apk"
+          MSYS2_ARG_CONV_EXCL='*' "$iscc" \
+            /DAppVersion="$VERSION" /DAppArch="$ARCH" \
+            "/DFilesDir=$(cygpath -w "$PWD/dist/ret-windows-$ARCH")" \
+            "/DOutputDir=$(cygpath -w "$PWD/dist")" packaging/windows/ret.iss
+      - name: Exercise native Windows installer
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.source.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $destination = Join-Path $env:RUNNER_TEMP 'ret-install'
+          $installer = "dist/ret-setup-$env:VERSION-windows-$env:ARCH.exe"
+          $result = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$destination") -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Installer failed with $($result.ExitCode)" }
+          try {
+            $binary = Join-Path $destination 'ret.exe'
+            if ((& $binary --version) -ne "ret $env:VERSION" -or $LASTEXITCODE -ne 0) { throw 'Installed CLI version mismatch' }
+            $bytes = [IO.File]::ReadAllBytes($binary)
+            $machine = [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 0x3c) + 4)
+            $expected = if ($env:ARCH -eq 'arm64') { 0xaa64 } else { 0x8664 }
+            if ($machine -ne $expected) { throw 'Installed CLI architecture mismatch' }
+            if ((Get-FileHash "$destination/ret.apk").Hash -ne (Get-FileHash 'apk/ret-release.apk').Hash) { throw 'Installed APK mismatch' }
+          } finally {
+            $result = Start-Process -FilePath "$destination/unins000.exe" -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -Wait -PassThru
+            if ($result.ExitCode -ne 0) { throw "Uninstaller failed with $($result.ExitCode)" }
+          }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-windows-${{ matrix.arch }}
+          path: dist/ret-setup-*.exe
+          if-no-files-found: error
 
-          # artifacts do not keep the executable bit
-          cp bin/binary-linux/ret bin/binary-linux/ret-ui target/release/
-          chmod 755 target/release/ret target/release/ret-ui
-          cp bin/apk/ret-release.apk target/release/ret.apk
+  linux:
+    name: Linux (${{ matrix.kind }}, ${{ matrix.arch }})
+    needs: [source, apk]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: glibc
+            arch: x86_64
+            runner: ubuntu-24.04
+            image: rust:1.98.0-bullseye@sha256:4730e387a220a08a365c77da3096544dde214f9d796c16284d4be45438cad4a9
+          - kind: glibc
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            image: rust:1.98.0-bullseye@sha256:4730e387a220a08a365c77da3096544dde214f9d796c16284d4be45438cad4a9
+          - kind: arch
+            arch: x86_64
+            runner: ubuntu-24.04
+            image: archlinux:base-devel
+          - kind: alpine
+            arch: x86_64
+            runner: ubuntu-24.04
+            image: alpine:3.24
+          - kind: alpine
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            image: alpine:3.24
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: source
+          path: inputs
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: apk
+          path: inputs
+      - name: Build native packages
+        env:
+          VERSION: ${{ needs.source.outputs.version }}
+          SOURCE_DATE_EPOCH: ${{ needs.source.outputs.epoch }}
+          IMAGE: ${{ matrix.image }}
+          KIND: ${{ matrix.kind }}
+        run: |
+          mkdir dist
+          docker run --rm -e SOURCE_DATE_EPOCH -e VERSION -e KIND \
+            -v "$PWD/inputs:/inputs:ro" -v "$PWD/dist:/out" \
+            -v "$PWD/packaging/build-linux:/build-linux:ro" "$IMAGE" \
+            sh -ec 'if [ "$KIND" = alpine ]; then apk add --no-cache bash; fi; exec bash /build-linux "$KIND" "$VERSION"'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-${{ matrix.kind }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
 
-          # the generic tarball of the linux build
-          mkdir -p dist/ret-x86_64
-          cp target/release/ret target/release/ret-ui target/release/ret.apk dist/ret-x86_64/
-          tar -czf "dist/ret-x86_64-$version.tar.gz" -C dist ret-x86_64
+  macos:
+    name: macOS (${{ matrix.arch }})
+    needs: [source, apk]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-14
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - run: rustup toolchain install 1.98.0 --profile minimal && rustup default 1.98.0
+      - run: cargo build --workspace --release --locked && cargo test --workspace --locked
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: apk
+          path: apk
+      - name: Package and exercise macOS distributions
+        env:
+          VERSION: ${{ needs.source.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: bash packaging/build-macos "$VERSION" "$ARCH" apk/ret-release.apk
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-macos-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
 
-          # the Android application, published on its own
-          cp bin/apk/ret-release.apk "dist/ret-v$version.apk"
-
-          # the deb and the rpm of Fedora and openSUSE, from the linux build
-          cargo install --locked cargo-deb cargo-generate-rpm
-          cargo deb -p ret-cli --no-build
-          (cd crates/ret-cli && cargo generate-rpm)
-          cp target/debian/ret_*.deb dist/
-          cp crates/ret-cli/target/generate-rpm/ret-*.rpm dist/
-
-          # the rpm of RHEL, built in a container with an old glibc
-          docker run --rm \
-            -e VERSION="$version" -v "$PWD":/work -w /work rust:1-bullseye bash -ec '
-            cargo install --quiet cargo-generate-rpm
-            cargo build --release --locked --target-dir target-rhel
-            cp dist/ret-v'"$version"'.apk target-rhel/release/ret.apk
-            cd crates/ret-cli
-            cargo generate-rpm --set-metadata "assets = [
-              { source = \"../../target-rhel/release/ret\", dest = \"/usr/bin/ret\", mode = \"755\" },
-              { source = \"../../target-rhel/release/ret-ui\", dest = \"/usr/bin/ret-ui\", mode = \"755\" },
-              { source = \"../../target-rhel/release/ret.apk\", dest = \"/usr/share/ret/ret.apk\", mode = \"644\" },
-            ]" -o "../../dist/ret-$VERSION-1.el9.x86_64.rpm"
-          '
-
-          # the AppImage, built in a container with an old glibc
-          docker run --rm \
-            -e VERSION="$version" -v "$PWD":/work -w /work rust:1-bullseye bash -ec '
-            curl -sL -o appimagetool.AppImage https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-            chmod +x appimagetool.AppImage
-            cargo build --release --locked --target-dir target-appimage
-            rm -rf AppDir
-            mkdir -p AppDir/usr/bin AppDir/usr/share/ret AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-            cp target-appimage/release/ret target-appimage/release/ret-ui AppDir/usr/bin/
-            cp packaging/linux/ret.desktop AppDir/usr/share/applications/
-            cp packaging/linux/ret.desktop AppDir/
-            cp assets/ret.png AppDir/ret.png
-            cp packaging/linux/appimage/AppRun AppDir/AppRun
-            cp dist/ret-v'"$version"'.apk AppDir/usr/share/ret/ret.apk
-            ./appimagetool.AppImage --appimage-extract-and-run AppDir "dist/ret-$VERSION-x86_64.AppImage"
-          '
-
-          # the Alpine package, built in a container against the musl of the image
-          sed -i "s/^pkgver=.*/pkgver=$version/" packaging/linux/alpine/APKBUILD
-          docker run --rm -e VERSION="$version" -v "$PWD":/work -w /work alpine:latest sh -ec '
-            apk add alpine-sdk rust cargo unzip sudo >/dev/null
-            adduser -D builder
-            addgroup builder abuild
-            echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
-            mkdir -p /home/builder/test /home/builder/packages /var/cache/distfiles
-            cp packaging/linux/alpine/APKBUILD /home/builder/test/
-            cp dist/ret-v'"$version"'.apk /var/cache/distfiles/ret.apk
-            chown -R builder:builder /home/builder /var/cache/distfiles
-            su builder -c "cd /home/builder/test && abuild-keygen -a -n && abuild checksum"
-            cp /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
-            su builder -c "cd /home/builder/test && abuild -r"
-            cp /home/builder/packages/builder/x86_64/ret-*.apk /work/dist/
-          '
-
-          # the Arch Linux package, built in a container against the pacman of the image
-          docker run --rm \
-            -e VERSION="$version" -v "$PWD":/work -w /work archlinux:base-devel bash -ec '
-            sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/linux/arch/PKGBUILD
-            pacman -Sy archlinux-keyring --noconfirm
-            pacman -Syu --needed --noconfirm rust pacman-contrib hicolor-icon-theme libxkbcommon libxkbcommon-x11 wayland libglvnd
-            useradd -m builder
-            mkdir -p /home/builder/packaging/linux/arch /home/builder/assets /home/builder/srcdest
-            cp packaging/linux/arch/PKGBUILD /home/builder/packaging/linux/arch/
-            cp packaging/linux/ret.desktop /home/builder/packaging/linux/
-            cp assets/ret.png /home/builder/assets/
-            cp dist/ret-v'"$version"'.apk /home/builder/srcdest/ret.apk
-            chown -R builder:builder /home/builder
-            su builder -c "export SRCDEST=/home/builder/srcdest && cd /home/builder/packaging/linux/arch && updpkgsums && makepkg -f"
-            cp /home/builder/packaging/linux/arch/ret-*.pkg.tar.zst /work/dist/
-          '
-
-          # the Windows installer, built by the windows job
-          cp bin/installer-windows/ret-setup-*.exe dist/
-
-      # legacy commits that do not follow Conventional Commits are reported on stderr and skipped
-      - run: cog changelog --at "$GITHUB_REF_NAME" > notes.md
-
-      - name: Publish
+  release:
+    name: verify assets and publish
+    needs: [source, apk, windows, linux, macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cocogitto/cocogitto-action@52d0023b4396897f1815648e553db2ab8d782f3a # v4.2.0
+        if: github.event_name == 'push'
+        with:
+          install-only: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: source
+          path: dist
+      - name: Verify complete release manifest
+        env:
+          VERSION: ${{ needs.source.outputs.version }}
+        run: |
+          cp LICENSE dist/LICENSE
+          python3 packaging/check-assets.py "$VERSION" dist
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: dist/*
+          if-no-files-found: error
+      - name: Generate release notes
+        if: github.event_name == 'push'
+        run: cog changelog --at "$GITHUB_REF_NAME" > notes.md
+      - name: Publish complete release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # a deleted tag leaves the release of the previous run as a draft, whose
-          # assets are unreachable
-          gh release delete "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --yes || true
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --title "$GITHUB_REF_NAME" --notes-file notes.md \
-            dist/ret-x86_64-*.tar.gz dist/ret-v*.apk dist/*.deb dist/*.rpm \
-            dist/ret-0.*.apk dist/*.AppImage dist/ret-setup-*.exe dist/ret-0.*-x86_64.pkg.tar.zst
+            --verify-tag --draft --title "$GITHUB_REF_NAME" --notes-file notes.md dist/*
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

@@ -1,2 +1,6 @@
 #!/bin/sh
-exec "$(dirname "$(readlink -f "$0")")/usr/bin/ret-ui" "$@"
+set -eu
+
+appdir=$(dirname -- "$(readlink -f -- "$0")")
+export RET_APK="${RET_APK-$appdir/usr/share/ret/ret.apk}"
+exec "$appdir/usr/bin/ret-ui" "$@"

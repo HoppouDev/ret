@@ -35,6 +35,11 @@ and always starts the server from that copy. An `adb` installed on the system
 is never used, and the download is kept, so it happens once. Only `ADB`
 replaces the downloaded program, with one you choose.
 
+Google's Linux download requires x86_64 and glibc. On Linux ARM64 or Alpine,
+install your distribution's native `adb` and set `ADB` to its full path.
+For example, use `ADB=/usr/bin/adb ret run` or `ADB=/usr/bin/adb ret-ui`.
+The Alpine package already installs native `adb`.
+
 While the tools download, `ret` shows a terminal progress bar with
 the amount received and the percentage when the download size is known,
 or a spinner when it is unknown, followed by the extraction status. `ret-ui`
@@ -56,19 +61,75 @@ Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
 ## Get the app
 
-Download the [latest release][latest] and extract it.
+Download the appropriate files from the [latest release][latest].
 
-The Linux tarball (`ret-x86_64-<version>.tar.gz`) contains:
+The Linux tarball (`ret-<version>-linux-<arch>.tar.gz`) contains:
  - `ret.apk`
  - `ret`
  - `ret-ui`
+ - `LICENSE`
 
-On Windows, run the installer (`ret-setup-<version>.exe`), which puts `ret`
-and `ret-ui` on the user `Path` and installs the same `ret.apk`.
+On Windows, run `ret-setup-<version>-windows-<arch>.exe`, choosing `x86_64`
+for Intel/AMD or `arm64` for Windows on ARM. The installer puts `ret` and
+`ret-ui` on the user `Path` and installs the same `ret.apk`.
 
-Every release also publishes packages for Debian, Fedora, openSUSE, RHEL,
-Arch and Alpine, an AppImage which runs on any other distribution, and the
-Android application (`ret-<version>.apk`) on its own.
+On macOS 13 or newer, download `ret-<version>-macos-<arch>.dmg`, choosing
+`x86_64` for Intel or `arm64` for Apple Silicon. Open the disk image and drag
+`ret.app` into Applications. The app includes the Android APK. These builds
+are ad-hoc signed, not Developer ID signed or notarized. If macOS blocks the
+first launch, review the app in System Settings > Privacy & Security and
+choose Open Anyway only if you trust the downloaded release.
+
+The matching macOS `.tar.gz` contains `bin/ret`, `bin/ret-ui`,
+`share/ret/ret.apk` and `LICENSE`. Keep that directory layout when using the
+command-line programs. Windows and macOS download their platform tools
+automatically on first use.
+
+Every release also publishes packages for Debian, Fedora, openSUSE, RHEL 9,
+Arch and Alpine, an AppImage, and the Android application
+(`ret-v<version>.apk`) on its own. Linux tarballs, debs, RPMs, AppImages and
+Alpine packages support x86_64 and ARM64. Arch Linux packages are x86_64 only.
+The release also includes the Apache-2.0 `LICENSE`.
+
+Install the native package with your distribution's package manager so its
+library dependencies are installed too:
+
+```bash
+# Debian and Ubuntu
+sudo apt install ./ret_<version>-1_amd64.deb
+# Fedora
+sudo dnf install ./ret-<version>-1-fedora-opensuse.x86_64.rpm
+# RHEL 9 and its clones
+sudo dnf install ./ret-<version>-1.el9-rhel9.x86_64.rpm
+# openSUSE
+sudo zypper install ./ret-<version>-1-fedora-opensuse.x86_64.rpm
+# Arch Linux
+sudo pacman -U ./ret-<version>-1-archlinux-x86_64.pkg.tar.zst
+```
+
+Replace `<version>` with the release version. The examples above use x86_64.
+For ARM64, choose `arm64` in Debian package names and `aarch64` in RPM,
+Alpine, Linux tarball and AppImage names.
+
+Alpine packages use a signing key for each release and architecture.
+Download the matching `ret-<version>-alpine-<arch>.rsa.pub` from the same
+release, install it under `/etc/apk/keys/`, then install
+`ret-<version>-r0-alpine-<arch>.apk` with `apk add`. This Alpine package is
+distinct from the Android APK named `ret-v<version>.apk`.
+
+The Linux tarball and AppImage require glibc 2.31 or newer. The graphical
+interface also needs the host's X11 or Wayland libraries, libxkbcommon and
+EGL/OpenGL support. They do not include adb or graphics drivers. Make the
+AppImage executable with `chmod +x ret-<version>-linux-<arch>.AppImage` before
+running it. It uses its bundled Android APK unless `RET_APK` is already set.
+
+Download `SHA256SUMS.txt` alongside your chosen assets to check their hashes:
+
+```bash
+sha256sum --ignore-missing -c SHA256SUMS.txt
+```
+
+This checks the files you downloaded, not the authenticity of their publisher.
 
 ### Coming from Gnirehtet
 

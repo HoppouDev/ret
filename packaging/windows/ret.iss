@@ -6,24 +6,36 @@
 ;
 ; Build it with Inno Setup 6.3 or later (https://jrsoftware.org/isinfo.php):
 ;
-;     iscc /DAppVersion=0.2.0 packaging\windows\ret.iss
+;     iscc /DAppVersion=0.3.0 /DAppArch=x86_64 packaging\windows\ret.iss
 ;
-; AppVersion comes from the release tag without its leading v. The files come
-; from FilesDir, which defaults to the layout of the ret-win64 zip that the
-; packaging/release script and the release workflow produce:
+; AppVersion comes from the release tag without its leading v. AppArch must be
+; x86_64 or arm64. FilesDir defaults to dist\ret-windows-<AppArch>.
+; Stage ret.exe, ret-ui.exe, ret-run.cmd and ret.apk there, or set FilesDir:
 ;
-;     iscc /DAppVersion=0.2.0 /DFilesDir=C:\path\to\dist\ret-win64 packaging\windows\ret.iss
+;     iscc /DAppVersion=0.3.0 /DAppArch=arm64 /DFilesDir=C:\staging packaging\windows\ret.iss
 
 #define AppName "ret"
 #define AppPublisher "HoppouDev"
 #define AppURL "https://github.com/HoppouDev/ret"
 
 #ifndef AppVersion
-  #define AppVersion "0.0.0"
+  #error AppVersion must be supplied from the release tag
+#endif
+
+#ifndef AppArch
+  #error AppArch must be supplied as x86_64 or arm64
+#endif
+
+#if AppArch == "x86_64"
+  #define InstallArch "x64os"
+#elif AppArch == "arm64"
+  #define InstallArch "arm64"
+#else
+  #error AppArch must be x86_64 or arm64
 #endif
 
 #ifndef FilesDir
-  #define FilesDir "..\..\dist\ret-win64"
+  #define FilesDir "..\..\dist\ret-windows-" + AppArch
 #endif
 
 [Setup]
@@ -39,9 +51,9 @@ DefaultDirName={autopf}\ret
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\..\LICENSE
-OutputBaseFilename=ret-setup-{#AppVersion}
+OutputBaseFilename=ret-setup-{#AppVersion}-windows-{#AppArch}
 #ifndef OutputDir
-  #define OutputDir "..\dist"
+  #define OutputDir "..\..\dist"
 #endif
 OutputDir={#OutputDir}
 SetupIconFile=..\..\assets\ret.ico
@@ -50,8 +62,8 @@ UninstallDisplayIcon={app}\ret-ui.exe
 WizardStyle=modern
 Compression=lzma2/max
 SolidCompression=yes
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed={#InstallArch}
+ArchitecturesInstallIn64BitMode={#InstallArch}
 PrivilegesRequired=lowest
 ChangesEnvironment=yes
 
@@ -66,6 +78,7 @@ Source: "{#FilesDir}\ret.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#FilesDir}\ret-ui.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#FilesDir}\ret-run.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#FilesDir}\ret.apk"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\ret-ui.exe"; WorkingDir: "{app}"; \
@@ -82,6 +95,7 @@ Filename: "{app}\ret-ui.exe"; Description: "{cm:LaunchProgram,{#AppName}}"; \
 [Code]
 const
   EnvironmentKey = 'Environment';
+  InstallerStateKey = 'Software\HoppouDev\ret\Installer';
 
 // The directory of the installed apk, the default value of the RET_APK
 // variable of ret
@@ -136,22 +150,33 @@ begin
       Path := App
     else
       Path := Path + ';' + App;
-    RegWriteStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'Path', Path);
+    if RegWriteExpandStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'Path', Path) then
+      RegWriteStringValue(HKEY_CURRENT_USER, InstallerStateKey, 'PathAdded', App);
   end;
 end;
 
 // Remove the installation directory from the user Path
 procedure RemoveFromUserPath;
 var
-  App, Path, Part, Remaining: String;
+  App, Path, Part, Remaining, OwnedPath: String;
+  First, Last: Boolean;
 begin
-  if not RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'Path', Path) then
+  if not RegQueryStringValue(HKEY_CURRENT_USER, InstallerStateKey, 'PathAdded', OwnedPath) then
     Exit;
+  if NormalizeDir(OwnedPath) <> NormalizeDir(ExpandConstant('{app}')) then
+    Exit;
+  if not RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'Path', Path) then
+  begin
+    RegDeleteValue(HKEY_CURRENT_USER, InstallerStateKey, 'PathAdded');
+    Exit;
+  end;
   App := NormalizeDir(ExpandConstant('{app}'));
   Remaining := '';
-  while Path <> '' do
+  First := True;
+  while True do
   begin
-    if Pos(';', Path) > 0 then
+    Last := Pos(';', Path) = 0;
+    if not Last then
     begin
       Part := Copy(Path, 1, Pos(';', Path) - 1);
       Path := Copy(Path, Pos(';', Path) + 1, MaxInt);
@@ -161,18 +186,21 @@ begin
       Part := Path;
       Path := '';
     end;
-    if (Part <> '') and (NormalizeDir(Part) <> App) then
+    if NormalizeDir(Part) <> App then
     begin
-      if Remaining = '' then
-        Remaining := Part
-      else
-        Remaining := Remaining + ';' + Part;
+      if not First then
+        Remaining := Remaining + ';';
+      Remaining := Remaining + Part;
+      First := False;
     end;
+    if Last then
+      Break;
   end;
-  if Remaining = '' then
+  if First then
     RegDeleteValue(HKEY_CURRENT_USER, EnvironmentKey, 'Path')
   else
-    RegWriteStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'Path', Remaining);
+    RegWriteExpandStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'Path', Remaining);
+  RegDeleteValue(HKEY_CURRENT_USER, InstallerStateKey, 'PathAdded');
 end;
 
 // Point RET_APK at the installed apk, unless the user set their own value
@@ -181,19 +209,25 @@ var
   Current: String;
 begin
   if not RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'RET_APK', Current) then
-    RegWriteStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'RET_APK', InstalledApkVar);
+    if RegWriteStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'RET_APK', InstalledApkVar) then
+      RegWriteStringValue(HKEY_CURRENT_USER, InstallerStateKey, 'ApkSet', InstalledApkVar);
 end;
 
 // Remove the RET_APK value we set, keep one the user changed
 procedure UnsetRetApkDefault;
 var
-  Current: String;
+  Current, OwnedApk: String;
 begin
+  if not RegQueryStringValue(HKEY_CURRENT_USER, InstallerStateKey, 'ApkSet', OwnedApk) then
+    Exit;
+  if Lowercase(OwnedApk) <> Lowercase(InstalledApkVar) then
+    Exit;
   if RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, 'RET_APK', Current) then
   begin
     if Lowercase(Current) = Lowercase(InstalledApkVar) then
       RegDeleteValue(HKEY_CURRENT_USER, EnvironmentKey, 'RET_APK');
   end;
+  RegDeleteValue(HKEY_CURRENT_USER, InstallerStateKey, 'ApkSet');
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -215,5 +249,6 @@ begin
   begin
     RemoveFromUserPath;
     UnsetRetApkDefault;
+    RegDeleteKeyIfEmpty(HKEY_CURRENT_USER, InstallerStateKey);
   end;
 end;

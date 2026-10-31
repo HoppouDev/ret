@@ -1,0 +1,159 @@
+#!/bin/bash
+# Usage: build-macos VERSION x86_64|arm64 APK_PATH
+# OUTPUT_DIR defaults to dist. CARGO_TARGET_DIR and CARGO_BUILD_TARGET select compiled inputs.
+set -euo pipefail
+
+fail() {
+  printf '%s\n' "$*" >&2
+  exit 2
+}
+
+version=${1:?Usage: build-macos VERSION x86_64|arm64 APK_PATH}
+architecture=${2:?Missing architecture}
+apk=${3:?Missing downloaded APK path}
+[[ $# == 3 ]] || fail 'Expected version, architecture and APK path'
+[[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail 'Invalid release version'
+[[ $(uname -s) == Darwin ]] || fail 'macOS packaging requires a native macOS host'
+case $(uname -m) in
+  arm64) native_arch=arm64; target=aarch64-apple-darwin ;;
+  x86_64) native_arch=x86_64; target=x86_64-apple-darwin ;;
+  *) fail 'Unsupported macOS host architecture' ;;
+esac
+[[ $architecture == "$native_arch" ]] || fail "Requested $architecture does not match native $native_arch"
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+[[ -f $apk ]] || fail "APK not found: $apk"
+apk=$(cd "$(dirname "$apk")" && pwd)/$(basename "$apk")
+unzip -tq "$apk"
+build=${CARGO_TARGET_DIR:-$root/target}
+if [[ -n ${CARGO_BUILD_TARGET:-} ]]; then
+  [[ $CARGO_BUILD_TARGET == "$target" ]] || fail "CARGO_BUILD_TARGET must be $target on this host"
+  build="$build/$CARGO_BUILD_TARGET"
+fi
+build="$build/release"
+[[ -x $build/ret && -x $build/ret-ui ]] || fail "Build ret and ret-ui first in $build"
+output=${OUTPUT_DIR:-$root/dist}
+mkdir -p "$output"
+output=$(cd "$output" && pwd)
+work=$(mktemp -d)
+mounted=false
+cleanup() {
+  if [[ $mounted == true ]]; then
+    hdiutil detach "$work/mounted" || true
+  fi
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+# Do not advertise macOS 13 support if the linker selected a newer deployment target.
+for executable in ret ret-ui; do
+  binary="$build/$executable"
+  [[ $(lipo -archs "$binary") == "$architecture" ]] || fail "Wrong Mach-O architecture: $binary"
+  xcrun vtool -show-build "$binary" > "$work/build-version"
+  minimum=
+  while read -r key value rest; do
+    case "$key" in
+      minos) minimum=$value; break ;;
+      version) minimum=$value ;;
+    esac
+  done < "$work/build-version"
+  [[ $minimum =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || fail "Cannot read deployment target: $binary"
+  IFS=. read -r major minor patch <<< "$minimum"
+  if (( major > 13 || (major == 13 && (minor > 0 || ${patch:-0} > 0)) )); then
+    fail "$binary requires macOS $minimum. Rebuild with MACOSX_DEPLOYMENT_TARGET=13.0"
+  fi
+  otool -L "$binary" > "$work/libraries"
+  while read -r library rest; do
+    case "$library" in
+      "$binary":|/System/Library/*|/usr/lib/*) ;;
+      *) fail "Unbundled non-system dependency in $binary: $library" ;;
+    esac
+  done < "$work/libraries"
+done
+
+name="ret-$version-macos-$architecture"
+portable_name="ret-macos-$architecture"
+portable="$work/portable/$portable_name"
+app="$work/image/ret.app"
+mkdir -p "$portable/bin" "$portable/share/ret" \
+  "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/share/ret"
+install -m755 "$build/ret" "$build/ret-ui" "$portable/bin/"
+install -m644 "$apk" "$portable/share/ret/ret.apk"
+install -m644 "$root/LICENSE" "$portable/LICENSE"
+install -m755 "$build/ret" "$build/ret-ui" "$app/Contents/MacOS/"
+install -m644 "$apk" "$app/Contents/share/ret/ret.apk"
+install -m644 "$root/LICENSE" "$app/Contents/Resources/LICENSE"
+cat > "$app/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>ret</string>
+  <key>CFBundleDisplayName</key><string>ret</string>
+  <key>CFBundleIdentifier</key><string>dev.hoppou.ret</string>
+  <key>CFBundleExecutable</key><string>ret-ui</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>$version</string>
+  <key>CFBundleVersion</key><string>$version</string>
+  <key>CFBundleIconFile</key><string>ret.icns</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+EOF
+plutil -lint "$app/Contents/Info.plist"
+iconset="$work/ret.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" "$root/assets/ret.png" --out "$iconset/icon_${size}x${size}.png" > /dev/null
+  double=$((size * 2))
+  sips -z "$double" "$double" "$root/assets/ret.png" --out "$iconset/icon_${size}x${size}@2x.png" > /dev/null
+done
+iconutil -c icns -o "$app/Contents/Resources/ret.icns" "$iconset"
+
+# Sign individual helpers before sealing the application bundle.
+for directory in "$portable/bin" "$app/Contents/MacOS"; do
+  for executable in ret ret-ui; do
+    codesign --force --sign - "$directory/$executable"
+    codesign --verify --strict --verbose=2 "$directory/$executable"
+  done
+done
+codesign --force --sign - "$app"
+codesign --verify --deep --strict --verbose=2 "$app"
+ln -s /Applications "$work/image/Applications"
+hdiutil create -volname "ret $version" -srcfolder "$work/image" -format UDZO \
+  -fs HFS+ "$output/$name.dmg"
+hdiutil verify "$output/$name.dmg"
+COPYFILE_DISABLE=1 tar -czf "$output/$name.tar.gz" -C "$work/portable" "$portable_name"
+
+# Exercise the archived and disk-image contents from outside the source directory.
+mkdir -p "$work/extracted" "$work/smoke" "$work/mounted"
+tar -xzf "$output/$name.tar.gz" -C "$work/extracted"
+extracted="$work/extracted/$portable_name"
+(
+  cd "$work/smoke"
+  [[ $("$extracted/bin/ret" --version) == "ret $version" ]]
+)
+cmp "$apk" "$extracted/share/ret/ret.apk"
+for executable in ret ret-ui; do
+  [[ -x $extracted/bin/$executable ]]
+  [[ $(lipo -archs "$extracted/bin/$executable") == "$architecture" ]]
+  codesign --verify --strict --verbose=2 "$extracted/bin/$executable"
+done
+hdiutil attach -readonly -nobrowse -mountpoint "$work/mounted" "$output/$name.dmg"
+mounted=true
+installed="$work/mounted/ret.app"
+[[ $(readlink "$work/mounted/Applications") == /Applications ]]
+cmp "$apk" "$installed/Contents/share/ret/ret.apk"
+codesign --verify --deep --strict --verbose=2 "$installed"
+for executable in ret ret-ui; do
+  [[ -x $installed/Contents/MacOS/$executable ]]
+  [[ $(lipo -archs "$installed/Contents/MacOS/$executable") == "$architecture" ]]
+done
+(
+  cd "$work/smoke"
+  [[ $("$installed/Contents/MacOS/ret" --version) == "ret $version" ]]
+)
+hdiutil detach "$work/mounted"
+mounted=false
+printf 'Created %s\n' "$output/$name.dmg" "$output/$name.tar.gz"

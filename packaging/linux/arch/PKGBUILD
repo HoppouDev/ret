@@ -5,13 +5,17 @@ pkgrel=1
 pkgdesc='Reverse tethering for Android over adb'
 arch=(x86_64)
 url='https://github.com/HoppouDev/ret'
-license=(MIT)
-options="!debug"
+license=(Apache-2.0)
+options=(!debug)
 depends=(
   gcc-libs
   glibc
   libglvnd
   libxkbcommon
+  libx11
+  libxcursor
+  libxi
+  libxkbcommon-x11
   hicolor-icon-theme
   wayland
 )
@@ -20,9 +24,10 @@ optdepends=(
   'vulkan-icd-loader: the fast rendering of ret-ui'
 )
 source=(
-  "$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz"
+  "$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz"
   "ret.apk::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-v$pkgver.apk"
 )
+noextract=('ret.apk')
 sha256sums=('7e660eb3fa6654f7eb5a2fb2d8f008d00c71e5e2f55f5d7eb37fb42fcb8d339b'
             '6a9c9a1180475e3241f29a74a057f25de009880dc6071720e2506d025524f0df')
 
@@ -37,16 +42,16 @@ build() {
   export CARGO_HOME="$srcdir/cargo-home"
   export CARGO_TARGET_DIR="$srcdir/target"
   # keep the paths of the build machine out of the binaries
-  export RUSTFLAGS="--remap-path-prefix=$srcdir=/"
+  export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--remap-path-prefix=$srcdir=/"
   cd "$pkgname-$pkgver"
-  cargo build --release --locked
+  cargo build --release --frozen
 }
 
 check() {
   export CARGO_HOME="$srcdir/cargo-home"
   export CARGO_TARGET_DIR="$srcdir/target"
   cd "$pkgname-$pkgver"
-  cargo test --locked
+  cargo test --frozen
 }
 
 package() {
@@ -54,7 +59,7 @@ package() {
   install -Dm755 "$srcdir/target/release/ret-ui" "$pkgdir/usr/bin/ret-ui"
   install -Dm644 "$srcdir/ret.apk" "$pkgdir/usr/share/ret/ret.apk"
   install -Dm644 "$pkgname-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/ret/LICENSE"
-  install -Dm644 "$startdir/../ret.desktop" "$pkgdir/usr/share/applications/ret.desktop"
-  install -Dm644 "$startdir/../../../assets/ret.png" \
+  install -Dm644 "$pkgname-$pkgver/packaging/linux/ret.desktop" "$pkgdir/usr/share/applications/ret.desktop"
+  install -Dm644 "$pkgname-$pkgver/assets/ret.png" \
     "$pkgdir/usr/share/icons/hicolor/256x256/apps/ret.png"
 }

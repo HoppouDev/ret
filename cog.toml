@@ -3,14 +3,15 @@ tag_prefix = "v"
 from_latest_tag = true
 ignore_merge_commits = true
 branch_whitelist = ["master"]
-# Set the version of the crates (`[workspace.package]` in Cargo.toml) and of the Android app
-# (`versionName` in app/build.gradle.kts) to the new tag, and commit them along with the changelog
+# Set the workspace, Android app and native package versions to the new tag.
+# Commit these files along with the changelog.
 pre_bump_hooks = [
   "sed -i.bak 's/^version = \".*\"$/version = \"{{version}}\"/' Cargo.toml",
   "sed -i.bak 's/^\\([[:space:]]*versionName = \\)\".*\"$/\\1\"{{version}}\"/' app/build.gradle.kts",
-  "rm Cargo.toml.bak app/build.gradle.kts.bak",
+  "sed -i.bak 's/^pkgver=.*/pkgver={{version}}/' packaging/linux/arch/PKGBUILD packaging/linux/alpine/APKBUILD",
+  "rm Cargo.toml.bak app/build.gradle.kts.bak packaging/linux/arch/PKGBUILD.bak packaging/linux/alpine/APKBUILD.bak",
   "cargo update --workspace --offline",
-  "git add Cargo.toml Cargo.lock app/build.gradle.kts",
+  "git add Cargo.toml Cargo.lock app/build.gradle.kts packaging/linux/arch/PKGBUILD packaging/linux/alpine/APKBUILD",
 ]
 
 [changelog]

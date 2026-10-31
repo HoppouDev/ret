@@ -1,0 +1,26 @@
+name: Packaging
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - name: Check package metadata and script syntax
+        run: |
+          python3 packaging/check-release.py
+          bash -n packaging/release packaging/build-linux packaging/build-macos packaging/linux/arch/PKGBUILD
+          sh -n packaging/linux/alpine/APKBUILD packaging/linux/appimage/AppRun
+          python3 -m py_compile packaging/check-release.py packaging/check-assets.py
