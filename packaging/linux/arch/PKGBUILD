@@ -17,7 +17,6 @@ depends=(
 )
 makedepends=(cargo)
 optdepends=(
-  'android-tools: adb, which starts the adb server when none runs'
   'vulkan-icd-loader: the fast rendering of ret-ui'
 )
 source=(

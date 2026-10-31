@@ -26,27 +26,21 @@ The Android application requires at least API 21 (Android 5.0).
 
 ret talks to your devices through the [adb server] of your machine, with the
 [adb_client] library. The `adb` program is only used to start that server
-when no server runs yet, so a recent [adb] still has to be available.
+when no server runs yet.
 
-It is available in the [Android SDK platform tools][platform-tools].
-
-On Debian-based distros, you can alternatively install the package
-`android-tools-adb`.
-
-On Windows, if you need `adb` only for this application, just download the
-[platform-tools][platform-tools-windows] and extract the following files to the
-_ret_ directory:
- - `adb.exe`
- - `AdbWinApi.dll`
- - `AdbWinUsbApi.dll`
+No `adb` has to be installed: ret downloads the [Android SDK platform
+tools][platform-tools] into its data directory (`<AppData>\ret` on Windows,
+`~/Library/Application Support/ret` on macOS, `~/.local/share/ret` on Linux)
+and always starts the server from that copy. An `adb` installed on the system
+is never used, and the download is kept, so it happens once. Only `ADB`
+replaces the downloaded program, with one you choose.
 
 Make sure you [enabled adb debugging][enable-adb] on your device(s).
 
+[adb server]: https://developer.android.com/studio/command-line/adb.html
 [adb_client]: https://github.com/cocool97/adb_client
-[adb]: https://developer.android.com/studio/command-line/adb.html
 [enable-adb]: https://developer.android.com/studio/command-line/adb.html#Enabling
-[platform-tools]: https://developer.android.com/studio/releases/platform-tools.html
-[platform-tools-windows]: https://dl.google.com/android/repository/platform-tools-latest-windows.zip
+[platform-tools]: https://developer.android.com/tools/releases/platform-tools
 
 
 ## Get the app
@@ -171,7 +165,6 @@ The window remembers its settings in `config.toml`, in a `ret` directory of the
 user configuration directory:
  - Linux: `~/.config/ret/config.toml` (or `$XDG_CONFIG_HOME/ret/config.toml`)
  - Windows: `%APPDATA%\ret\config.toml`
- - macOS: `~/Library/Application Support/ret/config.toml`
 
 The window creates it with the default settings when it starts, and saves it as
 soon as a setting changes. You can also edit it by hand, every key is optional:

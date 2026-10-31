@@ -10,6 +10,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::mpsc;
 
@@ -265,13 +266,12 @@ impl io::Write for Forward {
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Start the adb server, with the program given in `ADB` or `adb` from `PATH`
+/// Start the adb server, with the `adb` program ret downloaded or the one given in `ADB`
 ///
 /// The adb server is the one part of adb which the `adb_client` library cannot create: it
 /// talks to a running server only.
 pub(crate) fn start_server() -> io::Result<()> {
-    let program = std::env::var_os("ADB").unwrap_or_else(|| "adb".into());
-    let mut command = Command::new(program);
+    let mut command = Command::new(adb_program()?);
     command.arg("start-server");
     // `adb` is a console program: a graphical parent without this flag flashes a terminal
     // window on every start, through which the daemon is started too
@@ -285,4 +285,16 @@ pub(crate) fn start_server() -> io::Result<()> {
             "`adb start-server` failed ({status})"
         )))
     }
+}
+
+/// The `adb` program which starts the server
+///
+/// The `adb` installed on the system is never run: the program comes from the platform tools,
+/// which the `download` module puts into the data directory of the user. Only `ADB` replaces
+/// it, with a program chosen by the user.
+fn adb_program() -> io::Result<PathBuf> {
+    if let Some(program) = std::env::var_os("ADB") {
+        return Ok(program.into());
+    }
+    crate::download::adb()
 }

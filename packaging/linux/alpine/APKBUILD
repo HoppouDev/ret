@@ -8,8 +8,7 @@ arch="x86_64"
 license="MIT"
 depends="libxkbcommon libxkbcommon-x11 wayland-libs-client wayland-libs-egl mesa-egl"
 makedepends="cargo unzip"
-optdepends="vulkan-loader: the fast rendering of ret-ui
-	android-tools: adb, which starts the adb server when none runs"
+optdepends="vulkan-loader: the fast rendering of ret-ui"
 source="$pkgname-$pkgver.tar.gz::https://github.com/HoppouDev/ret/archive/refs/tags/v$pkgver.tar.gz
 	ret.apk::https://github.com/HoppouDev/ret/releases/download/v$pkgver/ret-v$pkgver.apk"
 sha512sums="

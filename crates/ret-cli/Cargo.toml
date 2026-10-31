@@ -11,7 +11,7 @@ name = "ret"
 maintainer = "HoppouDev <me@hoppou.dev>"
 copyright = "2026 HoppouDev"
 depends = "libc6, libgcc-s1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libegl1"
-suggests = "android-tools-adb, mesa-vulkan-drivers"
+suggests = "mesa-vulkan-drivers"
 section = "net"
 revision = "1"
 triggers-file = "../../packaging/linux/debian/triggers"
@@ -28,7 +28,6 @@ name = "ret"
 release = "1"
 auto-req = "no"
 requires = { "libc.so.6()(64bit)" = "*", "libgcc_s.so.1()(64bit)" = "*", "libm.so.6()(64bit)" = "*", "libxkbcommon.so.0()(64bit)" = "*", "libxkbcommon-x11.so.0()(64bit)" = "*", "libwayland-client.so.0()(64bit)" = "*", "libEGL.so.1()(64bit)" = "*" }
-suggests = { android-tools = "*" }
 assets = [
     { source = "../../target/release/ret", dest = "/usr/bin/ret", mode = "755" },
     { source = "../../target/release/ret-ui", dest = "/usr/bin/ret-ui", mode = "755" },

@@ -2,6 +2,7 @@
 
 mod adb;
 pub mod client;
+mod download;
 pub mod info;
 pub mod track;
 

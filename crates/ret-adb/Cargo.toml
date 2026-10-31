@@ -6,4 +6,7 @@ publish.workspace = true
 
 [dependencies]
 adb_client.workspace = true
+dirs.workspace = true
 tracing.workspace = true
+ureq.workspace = true
+zip.workspace = true
