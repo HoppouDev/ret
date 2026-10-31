@@ -13,6 +13,9 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::mpsc;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use adb_client::server_device::ADBServerDevice;
 use adb_client::{ADBDeviceExt, RustADBError};
 use tracing::debug;
@@ -257,13 +260,24 @@ impl io::Write for Forward {
     }
 }
 
+/// The `CREATE_NO_WINDOW` flag of `CreateProcessW`, see
+/// <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw>
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 /// Start the adb server, with the program given in `ADB` or `adb` from `PATH`
 ///
 /// The adb server is the one part of adb which the `adb_client` library cannot create: it
 /// talks to a running server only.
 pub(crate) fn start_server() -> io::Result<()> {
     let program = std::env::var_os("ADB").unwrap_or_else(|| "adb".into());
-    let status = Command::new(program).arg("start-server").status()?;
+    let mut command = Command::new(program);
+    command.arg("start-server");
+    // `adb` is a console program: a graphical parent without this flag flashes a terminal
+    // window on every start, through which the daemon is started too
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let status = command.status()?;
     if status.success() {
         Ok(())
     } else {
