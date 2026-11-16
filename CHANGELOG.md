@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+# [v0.4.1](https://github.com/HoppouDev/ret/compare/8674e640d2cb251b428dece67bda8cbe88785590..v0.4.1) - 2026-11-16
+### Bug Fixes
+- (**ui**) embed Windows taskbar icon in the executable - ([8674e64](https://github.com/HoppouDev/ret/commit/8674e640d2cb251b428dece67bda8cbe88785590)) - HoppouDev
+
+- - -
+
 
 ## [v0.4.0](https://github.com/HoppouDev/ret/compare/a81d9ce7cebf2a86615b1e4821423ec24181bd04..v0.4.0) - 2026-10-31
 

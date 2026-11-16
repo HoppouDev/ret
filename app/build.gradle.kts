@@ -22,7 +22,7 @@ android {
         minSdk = 21
         targetSdk = 29
         // set by `cog bump`, along with the version of the Rust crates
-        versionName = "0.4.0"
+        versionName = "0.4.1"
         versionCode = versionCodeOf(versionName!!)
     }
     buildFeatures {
