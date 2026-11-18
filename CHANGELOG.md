@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+# [v0.5.0](https://github.com/HoppouDev/ret/compare/ece9d521a92cd4092c5ce2bf7e66a2149ed5bf8c..v0.5.0) - 2026-11-18
+### Features
+- (**relay**) relay UDP broadcasts and replies from any port of the contacted host - ([ece9d52](https://github.com/HoppouDev/ret/commit/ece9d521a92cd4092c5ce2bf7e66a2149ed5bf8c)) - HoppouDev
+### Documentation
+- (**readme**) describe UDP broadcast relaying - ([8ef216d](https://github.com/HoppouDev/ret/commit/8ef216da28eb6f510eaef314391991990cf989c8)) - HoppouDev
+
+- - -
+
 # [v0.4.1](https://github.com/HoppouDev/ret/compare/8674e640d2cb251b428dece67bda8cbe88785590..v0.4.1) - 2026-11-16
 ### Bug Fixes
 - (**ui**) embed Windows taskbar icon in the executable - ([8674e64](https://github.com/HoppouDev/ret/commit/8674e640d2cb251b428dece67bda8cbe88785590)) - HoppouDev
