@@ -15,7 +15,7 @@
  */
 
 use std::fmt;
-use std::net::SocketAddrV4;
+use std::net::{Ipv4Addr, SocketAddrV4};
 
 use crate::net;
 use crate::packet::ipv4_header::{Ipv4HeaderData, Protocol};
@@ -70,6 +70,31 @@ impl ConnectionId {
         };
         net::to_socket_addr(ip, self.destination_port)
     }
+
+    /// Whether the client sent this flow to the limited broadcast address (255.255.255.255)
+    pub fn is_broadcast(&self) -> bool {
+        self.destination_ip == u32::from(Ipv4Addr::BROADCAST)
+    }
+
+    /// Whether a datagram received from `sender` belongs to this flow
+    ///
+    /// Broadcast flows accept any sender (the replies come from whoever answered). Other flows
+    /// accept any port of the contacted host, so a server may answer from another socket.
+    pub fn accepts_reply_from(&self, sender: SocketAddrV4) -> bool {
+        self.is_broadcast() || sender.ip() == self.rewritten_destination().ip()
+    }
+
+    /// The address the client must see as the source of a datagram received from `sender`
+    ///
+    /// The client reaches the computer through the 10.0.2.2 alias, never through its own
+    /// loopback, so loopback senders are shown as the alias.
+    pub fn client_visible_source(sender: SocketAddrV4) -> SocketAddrV4 {
+        if sender.ip().is_loopback() {
+            net::to_socket_addr(LOCALHOST_FORWARD, sender.port())
+        } else {
+            sender
+        }
+    }
 }
 
 impl fmt::Display for ConnectionId {
@@ -106,5 +131,45 @@ mod tests {
     fn keep_other_destinations() {
         let destination = SocketAddrV4::new(Ipv4Addr::new(10, 0, 2, 3), 53);
         assert_eq!(destination, id_to(destination).rewritten_destination());
+    }
+
+    #[test]
+    fn detect_limited_broadcast() {
+        assert!(id_to(SocketAddrV4::new(Ipv4Addr::BROADCAST, 27036)).is_broadcast());
+        assert!(!id_to(SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 255), 27036)).is_broadcast());
+    }
+
+    #[test]
+    fn broadcast_accepts_any_sender() {
+        let id = id_to(SocketAddrV4::new(Ipv4Addr::BROADCAST, 27036));
+        assert!(id.accepts_reply_from(SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 20), 27036)));
+        assert!(id.accepts_reply_from(SocketAddrV4::new(Ipv4Addr::new(10, 9, 8, 7), 1234)));
+    }
+
+    #[test]
+    fn unicast_accepts_any_port_of_the_contacted_host_only() {
+        let id = id_to(SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 20), 27036));
+        assert!(id.accepts_reply_from(SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 20), 27036)));
+        assert!(id.accepts_reply_from(SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 20), 40000)));
+        assert!(!id.accepts_reply_from(SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 21), 27036)));
+    }
+
+    #[test]
+    fn host_alias_flow_accepts_loopback_replies() {
+        let id = id_to(SocketAddrV4::new(HOST_ALIAS_IP, 8080));
+        assert!(id.accepts_reply_from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 9090)));
+    }
+
+    #[test]
+    fn show_loopback_senders_as_host_alias() {
+        assert_eq!(
+            SocketAddrV4::new(HOST_ALIAS_IP, 9090),
+            super::ConnectionId::client_visible_source(SocketAddrV4::new(
+                Ipv4Addr::LOCALHOST,
+                9090
+            ))
+        );
+        let lan = SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 20), 27036);
+        assert_eq!(lan, super::ConnectionId::client_visible_source(lan));
     }
 }

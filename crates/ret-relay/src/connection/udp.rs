@@ -15,7 +15,7 @@
  */
 
 use std::io;
-use std::net::{self, Ipv4Addr};
+use std::net::{self, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::Receiver;
@@ -66,7 +66,7 @@ impl UdpConnection {
     ) {
         cx_info!(target: TAG, id, "Open");
         let mut connection = Self::new(id, client, &mut first_packet);
-        match Self::create_socket(&connection.id) {
+        match Self::create_socket() {
             Ok(socket) => {
                 if Self::send_to_network(&connection.id, &socket, first_packet).await {
                     connection.process(&socket, &mut inbound).await;
@@ -88,9 +88,16 @@ impl UdpConnection {
         }
     }
 
-    fn create_socket(id: &ConnectionId) -> io::Result<UdpSocket> {
+    /// Create the socket of a flow
+    ///
+    /// It is not connected: replies may come from another port of the contacted host, or from
+    /// any host for a broadcast (see [`ConnectionId::accepts_reply_from`]). Broadcast is allowed
+    /// so the client can also send to subnet broadcast addresses (e.g. 192.168.1.255); only
+    /// 255.255.255.255 counts as broadcast for replies, so replies to a subnet broadcast are
+    /// dropped unless they come from that address.
+    fn create_socket() -> io::Result<UdpSocket> {
         let socket = net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
-        socket.connect(id.rewritten_destination())?;
+        socket.set_broadcast(true)?;
         socket.set_nonblocking(true)?;
         UdpSocket::from_std(socket)
     }
@@ -112,10 +119,14 @@ impl UdpConnection {
                 // the client is closed
                 Event::Packet(None) => false,
                 Event::Readable(Ok(())) => {
-                    let open = self.receive(socket);
+                    let received = self.receive(socket);
                     // readiness does not consume the task budget, let the other tasks run
                     coop::consume_budget().await;
-                    open
+                    match received {
+                        Some(open) => open,
+                        // nothing relayed: not activity, keep the idle deadline
+                        None => continue,
+                    }
                 }
                 Event::Readable(Err(err)) => {
                     cx_error!(target: TAG, self.id, "Socket error: {}", err);
@@ -138,7 +149,7 @@ impl UdpConnection {
     async fn send_to_network(id: &ConnectionId, socket: &UdpSocket, mut raw: Vec<u8>) -> bool {
         let ipv4_packet = Ipv4Packet::parse(&mut raw);
         let payload = ipv4_packet.payload().expect("No payload");
-        match socket.send(payload).await {
+        match socket.send_to(payload, id.rewritten_destination()).await {
             Ok(_) => true,
             Err(err) => {
                 cx_error!(target: TAG, id, "Cannot write: [{:?}] {}", err.kind(), err);
@@ -147,15 +158,31 @@ impl UdpConnection {
         }
     }
 
-    /// Forward a datagram to the client, return false if the connection must close
-    fn receive(&mut self, socket: &UdpSocket) -> bool {
-        let mut source = socket;
-        let ipv4_packet = match self.network_to_client.packetize(&mut source) {
-            Ok(ipv4_packet) => ipv4_packet,
-            Err(err) if err.kind() == io::ErrorKind::WouldBlock => return true,
+    /// Forward a datagram to the client
+    ///
+    /// Return `Some(false)` if the connection must close, `Some(true)` if a datagram was relayed,
+    /// or `None` if nothing was (a datagram this flow does not accept, or no datagram yet).
+    fn receive(&mut self, socket: &UdpSocket) -> Option<bool> {
+        let id = &self.id;
+        let received = self.network_to_client.packetize_from(|buf| {
+            let (length, sender) = socket.try_recv_from(buf)?;
+            let SocketAddr::V4(sender) = sender else {
+                return Ok(None);
+            };
+            if !id.accepts_reply_from(sender) {
+                cx_debug!(target: TAG, id, "Dropped datagram from {}", sender);
+                return Ok(None);
+            }
+            Ok(Some((length, ConnectionId::client_visible_source(sender))))
+        });
+        let ipv4_packet = match received {
+            Ok(Some(ipv4_packet)) => ipv4_packet,
+            // not for this flow, keep it open
+            Ok(None) => return None,
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => return None,
             Err(err) => {
                 cx_error!(target: TAG, self.id, "Cannot read: [{:?}] {}", err.kind(), err);
-                return false;
+                return Some(false);
             }
         };
         if tracing::enabled!(target: TAG, Level::TRACE) {
@@ -174,7 +201,7 @@ impl UdpConnection {
             "Packet ({} bytes) sent to client",
             length
         );
-        open
+        Some(open)
     }
 }
 
@@ -227,6 +254,80 @@ mod tests {
         let (len, next_peer) = within(server.recv_from(&mut buf)).await.unwrap();
         assert_eq!(b"again", &buf[..len]);
         assert_eq!(peer, next_peer);
+
+        drop(to_relay);
+        within(relay).await.unwrap();
+    }
+
+    // 127.0.0.2 is only routed to loopback by default on Linux
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn drop_datagrams_from_other_hosts_and_keep_relaying() {
+        let server = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let stranger = UdpSocket::bind((Ipv4Addr::new(127, 0, 0, 2), 0))
+            .await
+            .unwrap();
+        let destination = SocketAddrV4::new(HOST_ALIAS_IP, server.local_addr().unwrap().port());
+        let device = SocketAddrV4::new(DEVICE_IP, 50002);
+        let mut first_packet = UdpDatagram {
+            source: device,
+            destination,
+            payload: b"hello".to_vec(),
+        }
+        .to_packet();
+
+        let (to_client, mut from_relay) = mpsc::channel(16);
+        let (to_relay, inbound) = mpsc::channel(16);
+        let id = connection_id(&mut first_packet);
+        let relay = tokio::spawn(UdpConnection::run(id, to_client, first_packet, inbound));
+
+        let mut buf = [0u8; 64];
+        let (_, peer) = within(server.recv_from(&mut buf)).await.unwrap();
+        stranger.send_to(b"intruder", peer).await.unwrap();
+        server.send_to(b"reply", peer).await.unwrap();
+
+        // the stranger's datagram never reaches the client, and the flow is still open
+        let response = UdpDatagram::parse(&next_packet(&mut from_relay).await);
+        assert_eq!(b"reply".to_vec(), response.payload);
+        assert!(!relay.is_finished());
+
+        drop(to_relay);
+        within(relay).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn relay_replies_from_another_port_of_the_contacted_host() {
+        let server = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let other = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let destination = SocketAddrV4::new(HOST_ALIAS_IP, server.local_addr().unwrap().port());
+        let device = SocketAddrV4::new(DEVICE_IP, 50001);
+        let mut first_packet = UdpDatagram {
+            source: device,
+            destination,
+            payload: b"hello".to_vec(),
+        }
+        .to_packet();
+
+        let (to_client, mut from_relay) = mpsc::channel(16);
+        let (to_relay, inbound) = mpsc::channel(16);
+        let id = connection_id(&mut first_packet);
+        let relay = tokio::spawn(UdpConnection::run(id, to_client, first_packet, inbound));
+
+        let mut buf = [0u8; 64];
+        let (_, peer) = within(server.recv_from(&mut buf)).await.unwrap();
+        // answer from a socket the client never contacted
+        other.send_to(b"from other port", peer).await.unwrap();
+        let response = UdpDatagram::parse(&next_packet(&mut from_relay).await);
+        let other_port = other.local_addr().unwrap().port();
+        assert_eq!(
+            UdpDatagram {
+                // shown through the host alias, with the real sender port
+                source: SocketAddrV4::new(HOST_ALIAS_IP, other_port),
+                destination: device,
+                payload: b"from other port".to_vec(),
+            },
+            response
+        );
 
         drop(to_relay);
         within(relay).await.unwrap();

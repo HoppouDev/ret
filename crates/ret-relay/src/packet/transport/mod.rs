@@ -180,6 +180,14 @@ impl<'a> TransportHeaderMut<'a> {
     }
 
     #[inline]
+    pub fn set_source_port(&mut self, source_port: u16) {
+        match *self {
+            TransportHeaderMut::Tcp(ref mut tcp_header) => tcp_header.set_source_port(source_port),
+            TransportHeaderMut::Udp(ref mut udp_header) => udp_header.set_source_port(source_port),
+        }
+    }
+
+    #[inline]
     pub fn set_payload_length(&mut self, payload_length: u16) {
         #[allow(clippy::single_match)]
         match *self {

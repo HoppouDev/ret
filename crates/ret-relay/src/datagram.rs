@@ -16,18 +16,11 @@
 
 use std::cmp;
 use std::io;
+use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedReadHalf;
-use tokio::net::{TcpStream, UdpSocket};
 
 pub trait DatagramReceiver {
     fn recv(&mut self, buf: &mut [u8]) -> io::Result<usize>;
-}
-
-// Expose UdpSocket as DatagramReceiver (non-blocking)
-impl DatagramReceiver for &UdpSocket {
-    fn recv(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.try_recv(buf)
-    }
 }
 
 /// Non-blocking `Read`/`Write` over a tokio stream, to be used once it is readable/writable

@@ -15,6 +15,7 @@
  */
 
 use std::io;
+use std::net::SocketAddrV4;
 
 use super::ipv4_header::{Ipv4Header, Ipv4HeaderData, Ipv4HeaderMut};
 use super::ipv4_packet::{Ipv4Packet, MAX_PACKET_LENGTH};
@@ -73,9 +74,20 @@ impl Packetizer {
         self.build(0)
     }
 
-    pub fn packetize<R: DatagramReceiver>(&mut self, source: &mut R) -> io::Result<Ipv4Packet<'_>> {
-        let r = source.recv(&mut self.buffer[self.payload_index..])?;
-        Ok(self.build(r as u16))
+    /// Receive a payload with `recv_from` and build a packet whose source is the returned sender
+    ///
+    /// `recv_from` fills the buffer and returns the payload length and the source to set, or
+    /// `None` to drop the payload (then no packet is built).
+    pub fn packetize_from<F>(&mut self, recv_from: F) -> io::Result<Option<Ipv4Packet<'_>>>
+    where
+        F: FnOnce(&mut [u8]) -> io::Result<Option<(usize, SocketAddrV4)>>,
+    {
+        let Some((length, source)) = recv_from(&mut self.buffer[self.payload_index..])? else {
+            return Ok(None);
+        };
+        self.ipv4_header_mut().set_source(u32::from(*source.ip()));
+        self.transport_header_mut().set_source_port(source.port());
+        Ok(Some(self.build(length as u16)))
     }
 
     /// Packetize from stream (`Read`) source.
@@ -165,9 +177,50 @@ mod tests {
         let transport_header = reference_packet.transport_header().unwrap();
         let mut packetizer = Packetizer::new(&ipv4_header, &transport_header);
 
-        let packet = packetizer.packetize(&mut mock).unwrap();
+        let sender = SocketAddrV4::new(std::net::Ipv4Addr::new(0x42, 0x42, 0x42, 0x42), 5678);
+        let packet = packetizer
+            .packetize_from(|buf| Ok(Some((mock.recv(buf)?, sender))))
+            .unwrap()
+            .unwrap();
         assert_eq!(36, packet.ipv4_header_data().total_length());
         assert_eq!(data, &packet.raw()[28..36]);
+    }
+
+    #[test]
+    fn packetize_from_sets_the_sender_as_source() {
+        let raw = &mut create_packet()[..];
+        let reference_packet = Ipv4Packet::parse(raw);
+        let ipv4_header = reference_packet.ipv4_header();
+        let transport_header = reference_packet.transport_header().unwrap();
+        let mut packetizer = Packetizer::new(&ipv4_header, &transport_header);
+
+        let sender = SocketAddrV4::new(std::net::Ipv4Addr::new(192, 168, 1, 20), 27036);
+        let packet = packetizer
+            .packetize_from(|buf| {
+                buf[..2].copy_from_slice(&[0xAA, 0xBB]);
+                Ok(Some((2, sender)))
+            })
+            .unwrap()
+            .unwrap();
+        assert_eq!(0xC0A8_0114, packet.ipv4_header_data().source());
+        // the reply still goes to the original source (0x12345678:1234)
+        assert_eq!(0x12345678, packet.ipv4_header_data().destination());
+        assert_eq!(27036, packet.transport_header_data().unwrap().source_port());
+        assert_eq!(
+            1234,
+            packet.transport_header_data().unwrap().destination_port()
+        );
+        assert_eq!([0xAA, 0xBB], packet.payload().unwrap());
+    }
+
+    #[test]
+    fn packetize_from_builds_nothing_when_dropped() {
+        let raw = &mut create_packet()[..];
+        let reference_packet = Ipv4Packet::parse(raw);
+        let ipv4_header = reference_packet.ipv4_header();
+        let transport_header = reference_packet.transport_header().unwrap();
+        let mut packetizer = Packetizer::new(&ipv4_header, &transport_header);
+        assert!(packetizer.packetize_from(|_| Ok(None)).unwrap().is_none());
     }
 
     #[test]
