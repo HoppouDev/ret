@@ -12,6 +12,10 @@ ret is a fork of [Gnirehtet] by Genymobile.
 Currently, it relays [TCP] and [UDP] over [IPv4] traffic, but it does not
 support [IPv6] (yet?).
 
+UDP replies may come from any port of the contacted host, and datagrams sent to
+the broadcast address (`255.255.255.255`) reach the computer's network and get
+the replies of any host, so LAN discovery protocols work through the relay.
+
 [TCP]: https://en.wikipedia.org/wiki/Transmission_Control_Protocol
 [UDP]: https://fr.wikipedia.org/wiki/User_Datagram_Protocol
 [IPv4]: https://en.wikipedia.org/wiki/IPv4
