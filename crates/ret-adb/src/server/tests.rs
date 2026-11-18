@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashSet;
 use std::net::TcpListener;
 
 fn state() -> State {
@@ -9,11 +10,24 @@ fn state() -> State {
     }
 }
 
+/// A free port that no other test of this run received
+///
+/// The probe listener is closed before the server fixture binds the port, so without this the
+/// system may give the same port to a test running in parallel, which then sees the other
+/// test's server as an existing one.
 fn address() -> SocketAddr {
-    TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-        .unwrap()
-        .local_addr()
-        .unwrap()
+    static GIVEN: Mutex<Option<HashSet<u16>>> = Mutex::new(None);
+    let mut given = GIVEN.lock().unwrap_or_else(|e| e.into_inner());
+    let given = given.get_or_insert_with(HashSet::new);
+    loop {
+        let address = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        if given.insert(address.port()) {
+            return address;
+        }
+    }
 }
 
 fn command(address: SocketAddr) -> Command {
